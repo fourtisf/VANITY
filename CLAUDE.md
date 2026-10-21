@@ -20,6 +20,7 @@ A website that creates Solana wallet or token addresses starting or ending with 
 | `engine/pattern.js` | Pattern parsing and odds. Shared by browser and server |
 | `engine/cpu-worker.mjs` | Server CPU fallback |
 | `scripts/smoke.mjs` | End-to-end check of a running server (`npm run smoke -- <url>`) |
+| `scripts/pay-test.mjs` | Fast mode payment check against a fake Solana RPC (`npm run test:pay`) |
 | `scripts/build-single.mjs` | Builds `dist/vanity.html`, a one-file offline version without Fast mode |
 
 Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.js` and `public/index.html` (`openSealed`, `verify`, `selfTest`). Every key shown to a user is re-derived and checked; that is the safety guarantee.
@@ -53,6 +54,7 @@ Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.
 4. Verify before exposing it:
    ```bash
    npm run smoke -- http://127.0.0.1:8080   # must end with ALL CHECKS PASSED
+   npm run test:pay                         # must end with ALL PAYMENT CHECKS PASSED
    ```
 5. Nginx + HTTPS (replace the domain):
    ```nginx
@@ -77,6 +79,8 @@ docker build -t solana-vanity .
 docker run -d --restart unless-stopped --gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility -e TRUST_PROXY=1 -p 8080:8080 solana-vanity
 ```
 
+With payments on, keep paid jobs across container rebuilds with a volume: add `-v vanity-data:/data -e PAID_JOBS_FILE=/data/paid-jobs.json`.
+
 ## Settings
 
 | Variable | Default | Meaning |
@@ -91,14 +95,23 @@ docker run -d --restart unless-stopped --gpus all -e NVIDIA_DRIVER_CAPABILITIES=
 | `RESULT_TTL_SECONDS` | `3600` | How long a sealed result stays in memory |
 | `ABANDON_SECONDS` | `600` | Cancel jobs whose page stopped checking in |
 | `TRUST_PROXY` | `0` | Set `1` behind Nginx so per-IP limits use `X-Forwarded-For` |
+| `PAY_TO` | empty | Solana address that receives Fast mode payments. Empty keeps Fast mode free |
+| `PRICE_SOL` | `0.01` | Price of one Fast mode job |
+| `PRICE_SOL_PER_HOUR` | `0.1` | Added per hour of average search time on this server (prices round to 0.0001 SOL) |
+| `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
+| `SOLANA_RPC` | public RPC of the cluster | The public RPC is rate-limited; use a provider URL (Helius, QuickNode, Triton) in production |
+| `PAID_JOBS_FILE` | `./paid-jobs.json` | Where paid jobs wait across restarts (no keys or results, see below) |
 
 ## Troubleshooting
 
+- Log says `payment check failed` or `blockhash failed`: the server cannot use `SOLANA_RPC`. The public RPC rate-limits busy sites; use a provider URL.
 - Log says `GPU engine unavailable`: run `vulkaninfo --summary`. No GPU listed means the NVIDIA driver or `libvulkan1` is missing. In Docker, `NVIDIA_DRIVER_CAPABILITIES` must include `graphics`.
 - Fast mode toggle not visible on the site: the page could not reach `/api/status`. Check the Nginx proxy.
 - Site works but "Your GPU" says not available: the visitor's browser has no WebGPU. It falls back to CPU automatically.
 
 ## Before a public launch
 
-- Fast mode has no payment yet. Anyone can queue jobs, limited per IP and by `MAX_EXPECTED_SECONDS`. Add a SOL payment check in `createJob` in `server.js` before queueing, or keep the limit low.
+- Fast mode is free until `PAY_TO` is set. With it, every job waits as `unpaid` until a Solana Pay transfer of the price to `PAY_TO` confirms on chain (see "How payments work" in README.md). Ask the owner for the wallet address and prices; never make one up.
+- Test payments on devnet first: `SOLANA_CLUSTER=devnet`, a devnet wallet with faucet SOL, one real search. Then switch to mainnet with a paid RPC in `SOLANA_RPC`.
+- No automatic refunds. Paid jobs that hit the time limit are logged with payer and signature; grep the log for `hit the time limit`.
 - One server process uses one GPU.

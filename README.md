@@ -20,6 +20,8 @@ engine/pattern.js      Pattern parsing and odds, shared by browser and server
 engine/cpu-worker.mjs  Server CPU fallback (worker_threads)
 public/index.html      The website
 scripts/build-single.mjs  Builds dist/vanity.html, a one-file version without Fast mode
+scripts/smoke.mjs      End-to-end check of a running server (npm run smoke -- <url>)
+scripts/pay-test.mjs   Fast mode payment check against a fake Solana RPC (npm run test:pay)
 ```
 
 ## Run locally
@@ -85,18 +87,34 @@ docker run --gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility -p 
 | `RESULT_TTL_SECONDS` | `3600` | How long a finished, sealed result is kept in memory |
 | `ABANDON_SECONDS` | `600` | Cancel jobs whose page stopped checking in |
 | `TRUST_PROXY` | `0` | Set `1` behind Nginx so per-IP limits use `X-Forwarded-For` |
+| `PAY_TO` | empty | Solana address that receives Fast mode payments. Empty keeps Fast mode free |
+| `PRICE_SOL` | `0.01` | Price of one Fast mode job |
+| `PRICE_SOL_PER_HOUR` | `0.1` | Added per hour of average search time on this server (prices round to 0.0001 SOL) |
+| `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
+| `SOLANA_RPC` | public RPC of the cluster | The public RPC is rate-limited; use a provider URL (Helius, QuickNode, Triton) in production |
+| `PAID_JOBS_FILE` | `./paid-jobs.json` | Where paid jobs wait across restarts (no keys or results, see below) |
 
 ## How the server keeps keys private
 
 1. The browser creates an RSA-OAEP 3072 key pair and sends only the public half with the job.
 2. The server finds the key, encrypts it with a fresh AES-256-GCM key, wraps that with the browser's RSA key, wipes the plaintext, and keeps only the sealed copy in memory.
 3. The browser unwraps it, re-derives the address, and rejects anything that does not match.
-4. Jobs and results live only in memory and expire after `RESULT_TTL_SECONDS`. Nothing is written to disk.
+4. Keys and results live only in memory and expire after `RESULT_TTL_SECONDS`; they are never written to disk. With payments on, a paid job whose result has not reached the browser is saved to `PAID_JOBS_FILE` as its request only (the pattern, the browser's public key and the payment), so a restart runs it again instead of losing it.
 
 The server still sees each key for a moment while sealing it. The website says this plainly and recommends keeping Fast mode off for wallets that will hold real funds.
 
 ## Before a public launch
 
-- **Payment is not built in.** Right now anyone can queue a server job. Either keep `MAX_EXPECTED_SECONDS` low, or add a SOL payment check in `createJob` (server.js) before the job is queued.
+- **Turn on payments.** Without `PAY_TO` anyone can queue a free server job, limited per IP and by `MAX_EXPECTED_SECONDS`. Set `PAY_TO` to your wallet address and Fast mode charges `PRICE_SOL + PRICE_SOL_PER_HOUR × average hours` per job.
+- **Try it on devnet first.** Start with `SOLANA_CLUSTER=devnet`, switch your wallet to devnet, get free SOL from the faucet, and run one search end to end. `npm run smoke -- <url>` also checks that the server reaches the RPC.
 - One server process uses one GPU. For more GPUs, run one process per GPU and split traffic, or add a coordinator.
-- The API: `GET /api/status`, `POST /api/jobs`, `GET /api/jobs/:id`, `DELETE /api/jobs/:id`.
+- The API: `GET /api/status`, `POST /api/jobs`, `GET /api/jobs/:id`, `DELETE /api/jobs/:id`, and `GET /api/blockhash` when payments are on.
+
+## How payments work
+
+1. `POST /api/jobs` returns the job as `unpaid` with a price and a fresh Solana Pay reference key.
+2. The page pays with a browser wallet (Phantom, Solflare, Backpack, found through the Wallet Standard) or a `solana:` link that opens a wallet app. The transfer lists the reference as an extra read-only account.
+3. While the page checks in, the server looks the reference up on chain (`getSignaturesForAddress`, then `getTransaction`) at most every 3 seconds. It accepts a successful transaction that raised `PAY_TO`'s balance by at least the price, and each transaction pays for one job only.
+4. The job then joins the queue. Paid jobs keep running if the page closes or loses its connection, and survive a server restart through `PAID_JOBS_FILE`. The page picks the result up when it comes back, within `RESULT_TTL_SECONDS` of the finish.
+
+There are no automatic refunds. A paid job that hits its time limit is logged with the payer and the transaction signature, so you can refund it by hand. Unpaid jobs are dropped after `ABANDON_SECONDS` without a check-in, after one last look for the payment.

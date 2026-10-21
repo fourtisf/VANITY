@@ -187,6 +187,10 @@ h1{margin:18px auto 14px;font:700 clamp(40px,7vw,76px)/.98 var(--display);letter
 .res .foot p{margin:0;font-size:15px;color:var(--muted);max-width:44ch}
 .dl{background:var(--teal);color:var(--teal-ink);border:0;border-radius:14px;padding:12px 20px;font:700 16px var(--display);box-shadow:0 10px 30px -12px rgba(59,227,195,.8)}
 .dl:hover{filter:brightness(1.06)}
+.dl:disabled{filter:grayscale(.6);opacity:.7;cursor:default}
+.paybox p{margin:0}
+.paybox .btns{flex-wrap:wrap;margin:12px 0 10px}
+.paybox a.sm{display:inline-flex;align-items:center;text-decoration:none}
 
 /* ---------- sections ---------- */
 .sec{max-width:1080px;margin:0 auto;padding:120px 20px 0}
@@ -412,6 +416,11 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <div class="bar"><i id="bar"></i></div>
       <div class="runmeta"><span id="rLuck"></span><span id="rTime"></span></div>
     </div>
+    <div class="note info paybox" id="paybox" hidden>
+      <p>Send <b><span id="payAmt"></span> SOL</b> to start the search on our cloud GPU.</p>
+      <div class="btns" id="payBtns"></div>
+      <p class="small" id="payMsg"></p>
+    </div>
 
     <button class="go" id="go" disabled>
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg>
@@ -579,7 +588,7 @@ const state = {
   server: { status: 'pending', info: null },
   running: false, runId: 0, tries: 0, t0: 0, a: null, sample: '', speedWin: [],
   found: null, results: [], placeholder: '', lastPaint: 0, runInfo: null,
-  job: null, serverRate: 0, ahead: 0, serverStatus: '', serverElapsed: 0
+  job: null, serverRate: 0, ahead: 0, serverStatus: '', serverElapsed: 0, pay: null, paying: false
 };
 
 /* ---------- formatting ---------- */
@@ -616,6 +625,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':
 const toB64 = u8 => btoa(String.fromCharCode(...u8));
 const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 function note(id, html){ $(id).innerHTML = html || ''; $(id).hidden = !html; }
+const fmtSol = x => String(Math.round(Math.round(x * 1e9) / 1e5) / 1e4);   // to the nearest 0.0001 SOL, like the server
 
 /* ---------- CPU engine ---------- */
 function fakeWorker(){
@@ -751,6 +761,71 @@ const SERVER_ERR = {
 };
 const serverErrText = (code, body) => (SERVER_ERR[code] || (() => 'Couldn’t reach the server. Check your connection and try again.'))(body || {});
 
+/* ---------- Fast mode payment (Solana Pay) ---------- */
+// Wallet extensions (Phantom, Solflare, Backpack...) announce themselves through the Wallet Standard events.
+const wallets = [];
+function registerWallets(...ws){
+  for (const w of ws) if (w && w.features && w.features['standard:connect'] && w.features['solana:signAndSendTransaction'] && !wallets.includes(w)) wallets.push(w);
+  if (state.pay) renderPay();
+  return () => {};
+}
+window.addEventListener('wallet-standard:register-wallet', e => { try { e.detail({ register: registerWallets }); } catch {} });
+try { window.dispatchEvent(new CustomEvent('wallet-standard:app-ready', { detail: { register: registerWallets } })); } catch {}
+
+function b58dec(s){
+  let n = 0n;
+  for (const c of s){ const d = ALPH.indexOf(c); if (d < 0) throw new Error('bad address'); n = n * 58n + BigInt(d); }
+  const out = []; while (n){ out.unshift(Number(n & 255n)); n >>= 8n; }
+  for (const c of s){ if (c !== '1') break; out.unshift(0); }
+  return Uint8Array.from(out);
+}
+// Unsigned legacy transaction with one System Program transfer. The job's reference rides along as an extra
+// read-only account (Solana Pay), which is how the server finds the payment on chain.
+function transferTx(payer, to, reference, lamports, blockhash){
+  if ([payer, to, reference, blockhash].some(k => k.length !== 32)) throw new Error('bad key');
+  const data = new Uint8Array(12), dv = new DataView(data.buffer);
+  dv.setUint32(0, 2, true); dv.setBigUint64(4, BigInt(lamports), true);
+  const header = [1, 0, 2], system = new Uint8Array(32), ix = [1, 3, 3, 0, 1, 2, data.length, ...data];
+  return Uint8Array.from([1, ...new Uint8Array(64), ...header, 4, ...payer, ...to, ...reference, ...system, ...blockhash, ...ix]);
+}
+const payMsg = t => { $('payMsg').textContent = t; };
+const sentMsg = 'Payment sent. The search starts as soon as it confirms. If nothing happens within a minute, check your wallet before paying again.';
+const paidJob = () => !!(state.job && !state.job.done && (state.job.paid || state.job.paySig));
+function renderPay(){
+  const pay = state.pay;
+  $('paybox').hidden = !pay;
+  if (!pay) return;
+  const usable = wallets.filter(w => !w.chains || w.chains.includes(pay.chain));
+  $('payAmt').textContent = pay.amount;
+  $('payBtns').innerHTML = usable.slice(0, 3).map((w, i) => `<button type="button" class="dl" data-w="${i}">Pay with ${esc(w.name)}</button>`).join('')
+    + `<a class="sm" href="${esc(pay.url)}">${usable.length ? 'Use a wallet app' : 'Open in wallet app'}</a>`;
+  $('payBtns').querySelectorAll('[data-w]').forEach(b => b.addEventListener('click', () => payWith(usable[+b.dataset.w], b)));
+  if (!state.paying) payMsg(state.job.paySig ? sentMsg : usable.length
+    ? 'The search starts as soon as the payment confirms, usually within a few seconds.'
+    : 'Opens Phantom, Solflare or another Solana wallet app. On a computer, add a Solana wallet extension and reload this page.');
+}
+async function payWith(w, btn){
+  const pay = state.pay, job = state.job;
+  if (!pay || !job || state.paying) return;
+  state.paying = true; btn.disabled = true;
+  try {
+    payMsg('Approve the transfer in your wallet.');
+    const { accounts } = await w.features['standard:connect'].connect();
+    const account = accounts.find(x => !x.chains || x.chains.includes(pay.chain)) || accounts[0];
+    if (!account) throw new Error('the wallet shared no account');
+    const r = await fetch('api/blockhash', { cache: 'no-store' });
+    if (!r.ok) throw new Error('the server could not reach Solana');
+    const { blockhash } = await r.json();
+    const tx = transferTx(account.publicKey, b58dec(pay.to), b58dec(pay.reference), pay.lamports, b58dec(blockhash));
+    const [out] = await w.features['solana:signAndSendTransaction'].signAndSendTransaction({ account, chain: pay.chain, transaction: tx });
+    if (job !== state.job) return;
+    job.paySig = b58(out.signature); idbPut(job);
+    payMsg(sentMsg);
+  } catch (e) {
+    if (job === state.job) payMsg(`The payment didn’t go through${e && e.message ? ` (${e.message})` : ''}. Nothing was charged unless your wallet shows a sent transfer.`);
+  } finally { state.paying = false; btn.disabled = false; }
+}
+
 async function runServer(id, a, saved){
   let job = saved;
   try {
@@ -766,13 +841,20 @@ async function runServer(id, a, saved){
     }
     state.job = job;
     while (state.running && id === state.runId){
-      const r = await fetch('api/jobs/' + job.id, { cache: 'no-store' });
-      if (r.status === 404) throw Object.assign(new Error('gone'), { code: 'gone' });
-      if (!r.ok) throw Object.assign(new Error('server'), { code: 'network' });
+      const r = await fetch('api/jobs/' + job.id, { cache: 'no-store' }).catch(() => null);
+      if (r && r.status === 404) throw Object.assign(new Error('gone'), { code: 'gone' });
+      if (!r || !r.ok){
+        // Money may be on the way or spent, and only this browser can open the result: ride out restarts and dropped connections.
+        if (!paidJob() && !(state.server.info && state.server.info.pay)) throw Object.assign(new Error('server'), { code: 'network' });
+        state.serverStatus = 'offline'; await sleep(4000); continue;
+      }
       const j = await r.json();
       if (id !== state.runId) return;
       state.tries = j.tries; state.serverRate = j.rate || state.serverRate; state.ahead = j.ahead || 0;
       state.serverStatus = j.status; state.serverElapsed = j.elapsed || 0;
+      if (j.paid) job.paid = j.paid;
+      const hadPay = !!state.pay; state.pay = j.status === 'unpaid' ? j.pay : null;
+      if (hadPay !== !!state.pay) renderPay();
       if (j.status === 'done'){
         const secret = await openSealed(j, job.key, a);
         job.done = true; idbDel(job.id);
@@ -784,8 +866,9 @@ async function runServer(id, a, saved){
     }
   } catch (e) {
     if (id !== state.runId) return;
+    const sig = job && ((job.paid) || job.paySig);
     if (job){ job.done = true; idbDel(job.id); }
-    note('runErr', serverErrText(e.code, e.body));
+    note('runErr', serverErrText(e.code, e.body) + (sig ? ` Your payment's transaction is ${esc(sig)}; keep it if you ask for a refund.` : ''));
     if (state.running) stop();
   }
 }
@@ -881,8 +964,10 @@ function update(){
     $('sAvg').classList.toggle('warn', avg > 3600);
     $('sSub').textContent = !ready ? (state[e].status === 'pending' ? 'Measuring this device' : 'Not available here')
       : p ? `1 in ${fmtBig(1/p)} keys on ${WHERE[e]}, ${fmtBig(rate)}/sec` : `${WHERE[e]}, ${fmtBig(rate)} keys/sec`.replace(/^./, c => c.toUpperCase());
-    $('sCost').textContent = 'Free';
-    $('sCostSub').textContent = e === 'server' ? 'Cloud GPU, free during beta' : 'Runs on your device';
+    const pay = e === 'server' && info && info.pay, known = p && ready && isFinite(avg);
+    $('sCost').textContent = pay ? `${fmtSol(pay.priceSol + (known ? pay.priceSolPerHour * avg / 3600 : 0))} SOL` : 'Free';
+    $('sCostSub').textContent = e !== 'server' ? 'Runs on your device' : !pay ? 'Cloud GPU, free during beta'
+      : known ? 'Cloud GPU, paid in SOL before it starts' : 'Cloud GPU, more for longer words';
   }
 
   if (!err && avg > 3600 && !state.running){
@@ -948,13 +1033,14 @@ function start(saved){
   const a = state.a, e = engine();
   if (!engineReady(e) || !a || a.error || a.empty) return;
   const id = ++state.runId;
-  Object.assign(state, { running: true, tries: 0, t0: now(), speedWin: [], sample: '', found: null, firstInRun: true, serverRate: 0, ahead: 0, serverStatus: 'queued', serverElapsed: 0, job: null });
+  Object.assign(state, { running: true, tries: 0, t0: now(), speedWin: [], sample: '', found: null, firstInRun: true, serverRate: 0, ahead: 0, serverStatus: 'queued', serverElapsed: 0, job: null, pay: null });
+  payMsg('');
   state.runInfo = { pl: a.pre.sets.length, sl: a.suf.sets.length, mode: state.mode, p: a.p, engine: e };
   note('runErr', ''); note('slow', '');
   const c = $('card'); c.classList.remove('found'); c.classList.add('running');
   $('make').classList.remove('happy'); $('make').classList.add('working');
   $('goText').textContent = 'Stop'; $('go').classList.add('stop'); $('go').disabled = false;
-  $('runbox').hidden = false; lock(true);
+  $('runbox').hidden = e === 'server' && !!(state.server.info && state.server.info.pay); lock(true);
   $('statusText').textContent = e === 'server' ? 'Sending to our cloud GPU' : `Searching on ${WHERE[e]}`;
   if (e === 'gpu') runGpu(id, a);
   else if (e === 'cpu') state.cpu.workers.forEach(w => w.postMessage({ type: 'start', runId: id, pre: a.pre.sets, suf: a.suf.sets }));
@@ -986,6 +1072,7 @@ function stop(){
   if (r && info){ if (info.engine === 'cpu') state.cpu.perThread = r / state.cpu.workers.length; else if (info.engine === 'gpu') state.gpu.rate = r; }
   $('card').classList.remove('running'); $('go').classList.remove('stop'); $('make').classList.remove('working');
   $('runbox').hidden = true;
+  state.pay = null; renderPay();
   lock(false); update();
 }
 function tick(t){
@@ -999,7 +1086,10 @@ function tick(t){
     $('rLuck').textContent = `${fmtBig(state.tries)} keys tried. ${Math.round(luck * 100)}% of searches would have found it by now.`;
     $('rTime').textContent = fmtElapsed(isServer ? state.serverElapsed * 1000 : t - state.t0);
     if (isServer && state.job){
-      $('statusText').textContent = state.serverStatus === 'queued'
+      $('runbox').hidden = state.serverStatus === 'unpaid';
+      $('statusText').textContent = state.serverStatus === 'offline' ? 'Lost contact with the server, retrying'
+        : state.serverStatus === 'unpaid' ? (state.job.paySig ? 'Waiting for your payment to confirm' : 'Waiting for your payment')
+        : state.serverStatus === 'queued'
         ? (state.ahead ? `Waiting for our cloud GPU, ${state.ahead} ${state.ahead === 1 ? 'search' : 'searches'} ahead` : 'Starting on our cloud GPU')
         : 'Searching on our cloud GPU';
     }
@@ -1098,7 +1188,11 @@ function setMode(mode, keepFields){
 document.querySelectorAll('[data-case]').forEach(b => b.addEventListener('click', () => setCase(b.dataset.case === 'any')));
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
 $('fast').addEventListener('click', () => setFast(!state.fast));
-$('go').addEventListener('click', () => state.running ? stop() : start());
+$('go').addEventListener('click', () => {
+  if (!state.running) return start();
+  if (paidJob() && !confirm('You paid for this search. Stopping it now gives up the payment. Stop anyway?')) return;
+  stop();
+});
 function ctaGo(){
   if (state.running) { $('make').scrollIntoView({ behavior: 'smooth' }); return; }
   $('pre').value = $('ctaPre').value.trim(); $('suf').value = $('ctaSuf').value.trim();

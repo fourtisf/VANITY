@@ -23,6 +23,16 @@ const prefix = 'A', suffix = 'x';
 const res = await fetch(base + '/api/jobs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prefix, suffix, anyCase: true, recipientKey: spki }) });
 const job = await res.json();
 if (res.status !== 201) fail('job not created: ' + JSON.stringify(job));
+if (status.pay) {
+  // A paid server holds the job until the transfer lands, so check the payment request and the RPC link, then cancel.
+  if (job.status !== 'unpaid' || !job.pay || job.pay.to !== status.pay.to || !(job.pay.lamports > 0)) fail('job is not waiting for payment: ' + JSON.stringify(job));
+  const bh = await fetch(base + '/api/blockhash').then(r => r.json()).catch(e => ({ error: e.message }));
+  await fetch(base + '/api/jobs/' + job.id, { method: 'DELETE' });
+  if (!bh.blockhash) fail('server cannot reach the Solana RPC: ' + JSON.stringify(bh));
+  console.log(`fast mode payment request: ok (${job.pay.amount} SOL to ${job.pay.to}; job canceled without paying)`);
+  console.log('ALL CHECKS PASSED');
+  process.exit(0);
+}
 const t0 = Date.now();
 let j;
 for (;;) {

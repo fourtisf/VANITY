@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "build:single": "node scripts/build-single.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "test:pay": "node scripts/pay-test.mjs"
   },
   "engines": {
     "node": ">=20"
