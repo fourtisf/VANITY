@@ -1,0 +1,1124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0B0C15">
+<title>Solana vanity address generator</title>
+<meta name="description" content="Make a Solana wallet or token address that starts or ends with your word. The key is made on your own graphics card.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='6' width='26' height='21' rx='8' fill='%235B45C9'/%3E%3Crect x='7' y='11' width='18' height='11' rx='5' fill='%230B0C15'/%3E%3Crect x='10' y='14' width='4' height='5' rx='2' fill='%233BE3C3'/%3E%3Crect x='18' y='14' width='4' height='5' rx='2' fill='%233BE3C3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0C15; --bg2:#10101F; --card:#151429; --card-hi:#1A1834; --well:#0D0C1C; --well2:#11102A;
+  --line:#25234A; --line2:#352F66; --rim:#4A3A92;
+  --text:#F3F2FF; --muted:#A8A4CC; --dim:#6E6A99; --ghost:#3C3866;
+  --teal:#3BE3C3; --teal-hi:#6CF2D8; --teal-deep:#17B496; --teal-ink:#03261F; --teal-wash:rgba(59,227,195,.08);
+  --violet:#8F72FF; --violet-deep:#5B45C9;
+  --warn:#FFC47D; --err:#FF8B9D;
+  --display:"Fredoka","Nunito",ui-rounded,system-ui,sans-serif;
+  --sans:"Nunito",ui-rounded,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box}
+html{color-scheme:dark;scroll-behavior:smooth}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font:700 16px/1.55 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.bgfx{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.bgfx::before{content:"";position:absolute;inset:0;
+  background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);
+  background-size:56px 56px;mask-image:radial-gradient(ellipse 80% 70% at 50% 30%,#000 20%,transparent 75%)}
+.bgfx::after{content:"";position:absolute;left:50%;top:-260px;width:1100px;height:720px;transform:translateX(-50%);
+  background:radial-gradient(closest-side,rgba(91,69,201,.42),rgba(91,69,201,.12) 55%,transparent);filter:blur(10px)}
+.bgfx i{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;opacity:.35}
+a{color:inherit}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed}
+:focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:12px}
+.z{position:relative;z-index:1}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- header ---------- */
+.top{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);background:rgba(11,12,21,.62);border-bottom:1px solid rgba(53,47,102,.5)}
+.top .in{max-width:1180px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:18px}
+.logo{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:13px;background:linear-gradient(160deg,#2A2160,#16132F);border:1px solid var(--line2);box-shadow:0 6px 18px -6px rgba(91,69,201,.7)}
+.nav{display:flex;gap:2px;margin-left:8px}
+.nav a{text-decoration:none;color:var(--muted);font:600 15.5px var(--display);padding:9px 13px;border-radius:11px;transition:color .15s,background .15s}
+.nav a:hover{color:var(--text);background:rgba(143,114,255,.1)}
+.top .sp{flex:1}
+.pill{display:inline-flex;align-items:center;gap:8px;font:600 14.5px var(--display);color:var(--text);padding:10px 16px;border-radius:13px;border:1px solid var(--line2);background:linear-gradient(180deg,#1B1838,#121027)}
+.pill svg{color:var(--teal)}
+
+/* ---------- hero ---------- */
+.hero{max-width:860px;margin:0 auto;padding:56px 20px 0;text-align:center}
+.kick{display:inline-flex;align-items:center;gap:8px;font:600 14.5px var(--display);color:var(--teal);padding:7px 14px;border-radius:999px;background:var(--teal-wash);border:1px solid rgba(59,227,195,.28)}
+.kick i{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+h1{margin:18px auto 14px;font:700 clamp(40px,7vw,76px)/.98 var(--display);letter-spacing:-.02em;max-width:12ch;
+  background:linear-gradient(180deg,#FFFFFF 30%,#C9C2FF);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{margin:0 auto;max-width:50ch;color:var(--muted);font-size:18.5px}
+
+/* ---------- order card ---------- */
+.stage{max-width:800px;margin:0 auto;padding:44px 20px 0;position:relative}
+.bot{display:block;width:176px;height:120px;margin:0 auto -34px;position:relative;z-index:3}
+.bot .eye{transform-box:fill-box;transform-origin:center;animation:blinkeye 5.5s infinite}
+@keyframes blinkeye{0%,94%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
+.bot .bulb{animation:bulb 2.4s ease-in-out infinite}
+@keyframes bulb{50%{opacity:.45}}
+.bot .happy{opacity:0}
+.stage.working .bot .eyes{animation:scan 1.1s ease-in-out infinite alternate}
+@keyframes scan{from{transform:translateX(-5px)}to{transform:translateX(5px)}}
+.stage.working .bot .bulb{animation-duration:.5s}
+.stage.happy .bot .eyes{opacity:0}
+.stage.happy .bot .happy{opacity:1}
+
+.card{position:relative;z-index:2;border-radius:32px;padding:34px 30px 28px;background:linear-gradient(180deg,var(--card-hi),var(--card) 22%);
+  border:1px solid var(--rim);
+  box-shadow:0 0 0 6px rgba(91,69,201,.06),0 40px 100px -40px rgba(91,69,201,.75),inset 0 1px 0 rgba(255,255,255,.06)}
+.card::after{content:"";position:absolute;left:12%;right:12%;top:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(196,180,255,.9),transparent)}
+
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:7px;border-radius:22px;background:var(--well);border:1px solid var(--line)}
+.tab{display:flex;align-items:center;justify-content:center;gap:10px;height:58px;border-radius:16px;border:1.5px solid transparent;background:none;color:var(--text);font:600 19px var(--display);white-space:nowrap;transition:background .2s var(--ease),color .2s,border-color .2s}
+.tab:hover:not(:disabled){background:rgba(255,255,255,.03)}
+.tab[aria-selected="true"]{color:var(--teal);background:linear-gradient(180deg,rgba(59,227,195,.12),rgba(59,227,195,.05));border-color:rgba(59,227,195,.7);box-shadow:0 0 30px -10px rgba(59,227,195,.7),inset 0 1px 0 rgba(255,255,255,.06)}
+.tab .ic{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:9px;background:rgba(255,255,255,.06)}
+.tab[aria-selected="true"] .ic{background:rgba(59,227,195,.16)}
+
+.fields{display:grid;grid-template-columns:1.25fr auto 1fr;align-items:end;gap:14px;margin-top:26px}
+.field span{display:block;font:600 17px var(--display);color:var(--muted);margin:0 0 10px 4px}
+.field input{width:100%;height:88px;padding:0 24px;border-radius:20px;background:var(--well);border:1.5px solid var(--line);color:var(--text);
+  font:800 36px var(--mono);letter-spacing:.01em;transition:border-color .2s,box-shadow .2s,background .2s;caret-color:var(--teal)}
+.field input::placeholder{color:var(--ghost);font-weight:700}
+.field input:hover:not(:disabled){border-color:var(--line2)}
+.field input:focus{outline:none;border-color:var(--teal);background:#0E0D21;box-shadow:0 0 0 5px rgba(59,227,195,.12),0 0 40px -12px rgba(59,227,195,.6)}
+.field input:disabled{opacity:.6}
+.gapdots{display:flex;gap:5px;padding:0 2px 38px}
+.gapdots i{width:6px;height:6px;border-radius:50%;background:var(--dim)}
+.hint{display:flex;justify-content:space-between;gap:12px;margin:12px 4px 0;font-size:15px;color:var(--dim)}
+.hint b{color:var(--muted);font-family:var(--mono)}
+
+.preview{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:14px;padding:14px 18px;border-radius:16px;background:rgba(13,12,28,.6);border:1px dashed var(--line2)}
+.paddr{font:500 15.5px/1.5 var(--mono);color:#4E4987;word-break:break-all;min-width:0;letter-spacing:.01em}
+.paddr .p,.paddr .s{color:var(--teal);font-weight:800;text-shadow:0 0 18px rgba(59,227,195,.45)}
+.card.running .paddr{color:#8A84C4}
+.card.found .paddr{color:var(--text)}
+.count{font:700 15px var(--mono);color:var(--muted);white-space:nowrap;padding:4px 10px;border-radius:9px;background:rgba(255,255,255,.04)}
+.status{display:flex;align-items:center;gap:9px;margin:10px 6px 0;font-size:15px;color:var(--muted);min-height:22px}
+.status .dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none}
+.card.running .status .dot,.card.found .status .dot{background:var(--teal);box-shadow:0 0 10px var(--teal)}
+.card.running .status .dot{animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+
+.note{margin:12px 0 0;padding:13px 16px;border-radius:16px;font-size:15px;line-height:1.45}
+.note.err{background:rgba(255,139,157,.08);color:var(--err);border:1px solid rgba(255,139,157,.25)}
+.note.tip{background:rgba(255,196,125,.07);color:var(--warn);border:1px solid rgba(255,196,125,.22)}
+.note.info{background:rgba(143,114,255,.08);color:#D9D0FF;border:1px solid rgba(143,114,255,.28)}
+.note b{font-weight:800}
+.note[hidden]{display:none}
+
+.choices{display:grid;gap:12px;margin-top:22px}
+.choice,.switchrow{display:flex;align-items:center;gap:18px;width:100%;text-align:left;padding:20px 22px;border-radius:20px;border:1.5px solid var(--line);background:var(--well2);transition:border-color .2s,background .2s,box-shadow .2s}
+.choice:hover:not(:disabled),.switchrow:hover:not(:disabled){border-color:var(--line2)}
+.choice .radio{flex:none;width:28px;height:28px;border-radius:50%;border:2px solid var(--line2);display:grid;place-items:center;transition:border-color .2s}
+.choice .radio::after{content:"";width:13px;height:13px;border-radius:50%;background:var(--teal);box-shadow:0 0 12px var(--teal);transform:scale(0);transition:transform .2s var(--ease)}
+.choice[aria-checked="true"]{border-color:rgba(59,227,195,.75);background:linear-gradient(180deg,rgba(59,227,195,.09),rgba(59,227,195,.03));box-shadow:0 0 34px -16px rgba(59,227,195,.7)}
+.choice[aria-checked="true"] .radio{border-color:var(--teal)}
+.choice[aria-checked="true"] .radio::after{transform:scale(1)}
+.choice .t,.switchrow .t{display:flex;align-items:center;gap:9px;font:600 20px/1.2 var(--display)}
+.choice .d,.switchrow .d{display:block;color:var(--muted);font-size:15.5px;margin-top:3px}
+.switchrow{margin-top:12px}
+.switchrow[hidden]{display:none}
+.switch{flex:none;width:56px;height:32px;border-radius:999px;background:#2A2752;position:relative;transition:background .25s;box-shadow:inset 0 2px 4px rgba(0,0,0,.35)}
+.switch::after{content:"";position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:#C3BDEA;transition:transform .25s var(--ease),background .25s;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.switchrow[aria-checked="true"]{border-color:rgba(59,227,195,.6)}
+.switchrow[aria-checked="true"] .switch{background:var(--teal-deep)}
+.switchrow[aria-checked="true"] .switch::after{transform:translateX(24px);background:#fff}
+.switchrow .t svg{color:var(--teal)}
+
+.est{display:grid;grid-template-columns:1fr 1fr;margin-top:22px;border-radius:22px;background:var(--well);border:1px solid var(--line);overflow:hidden}
+.est > div{padding:20px 24px}
+.est > div + div{border-left:1px solid var(--line)}
+.lab{display:flex;align-items:center;gap:9px;font:600 13.5px var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.lab svg{color:var(--teal)}
+.big{font:700 clamp(28px,4.6vw,42px)/1.08 var(--display);margin-top:8px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.big.warn{color:var(--warn)}
+.small{color:var(--muted);font-size:15.5px;margin-top:5px;font-variant-numeric:tabular-nums}
+
+.runbox{margin-top:18px}
+.runbox[hidden]{display:none}
+.bar{height:10px;border-radius:10px;background:var(--well);border:1px solid var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:10px;background:linear-gradient(90deg,var(--teal),var(--violet));box-shadow:0 0 16px rgba(59,227,195,.6);transition:width .25s linear}
+.runmeta{display:flex;justify-content:space-between;gap:12px;margin-top:9px;font-size:15px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+.go{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:12px;width:100%;margin-top:22px;height:76px;border:0;border-radius:22px;
+  background:linear-gradient(180deg,#63F2D6,#2FD6B6 55%,#22C3A4);color:var(--teal-ink);font:700 23px var(--display);
+  box-shadow:0 18px 50px -16px rgba(59,227,195,.85),inset 0 1px 0 rgba(255,255,255,.55),inset 0 -3px 0 rgba(0,0,0,.12);transition:transform .15s var(--ease),filter .15s}
+.go::after{content:"";position:absolute;top:0;bottom:0;width:40%;left:-60%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.45),transparent);transform:skewX(-18deg)}
+.go:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.04)}
+.go:hover:not(:disabled)::after{left:130%;transition:left .8s var(--ease)}
+.go:active:not(:disabled){transform:translateY(0)}
+.go:disabled{background:#1E1B3D;color:var(--dim);box-shadow:none}
+.go.stop{background:transparent;color:var(--text);box-shadow:inset 0 0 0 2px var(--line2)}
+.go.stop::after{display:none}
+.under{display:flex;justify-content:center;gap:22px;margin-top:16px}
+.under a{color:var(--muted);font:600 15.5px var(--display);text-decoration:none}
+.under a:hover{color:var(--teal)}
+
+/* ---------- results ---------- */
+.results{max-width:800px;margin:0 auto;padding:0 20px;display:grid;gap:16px}
+.results:not(:empty){padding-top:24px}
+.res{position:relative;border-radius:28px;border:1px solid rgba(59,227,195,.55);background:linear-gradient(180deg,rgba(59,227,195,.1),var(--card) 40%);padding:24px 26px;box-shadow:0 30px 80px -36px rgba(59,227,195,.6)}
+.res h2{display:flex;align-items:center;gap:10px;margin:0;font:700 25px var(--display)}
+.res h2 i{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--teal);color:var(--teal-ink)}
+.res .sub{margin:4px 0 14px;color:var(--muted);font-size:15.5px}
+.kv{display:grid;grid-template-columns:1fr auto;gap:8px 10px;align-items:center;padding:15px 0;border-top:1px solid var(--line)}
+.kv .k{grid-column:1/-1;font:600 13px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.kv .v{font:500 15.5px/1.5 var(--mono);word-break:break-all;min-width:0}
+.kv .v .p,.kv .v .s{color:var(--teal);font-weight:800}
+.kv .v.masked{color:var(--dim);letter-spacing:.14em}
+.btns{display:flex;gap:6px}
+.sm{background:var(--card-hi);border:1px solid var(--line2);border-radius:12px;padding:9px 14px;font:600 14.5px var(--display);color:var(--text);white-space:nowrap}
+.sm:hover{border-color:var(--muted)}
+.sm.done{color:var(--teal);border-color:rgba(59,227,195,.5)}
+.res .foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding-top:16px;border-top:1px solid var(--line)}
+.res .foot p{margin:0;font-size:15px;color:var(--muted);max-width:44ch}
+.dl{background:var(--teal);color:var(--teal-ink);border:0;border-radius:14px;padding:12px 20px;font:700 16px var(--display);box-shadow:0 10px 30px -12px rgba(59,227,195,.8)}
+.dl:hover{filter:brightness(1.06)}
+
+/* ---------- sections ---------- */
+.sec{max-width:1080px;margin:0 auto;padding:120px 20px 0}
+.sec > h2,.split h2{margin:0 0 12px;font:700 clamp(32px,5vw,50px)/1.05 var(--display);letter-spacing:-.015em;text-align:center}
+.sec > .lead{margin:0 auto 40px;max-width:54ch;text-align:center;color:var(--muted);font-size:18px}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.feat{position:relative;overflow:hidden;padding:28px;border-radius:28px;border:1px solid var(--line);background:linear-gradient(180deg,var(--card-hi),var(--card))}
+.feat h3{margin:14px 0 8px;font:700 25px var(--display)}
+.feat p{margin:0 0 18px;color:var(--muted)}
+.feat .chipaddr{display:inline-block;font:500 15px var(--mono);color:#5A5594;padding:10px 14px;border-radius:12px;background:var(--well);border:1px solid var(--line);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feat .chipaddr b{color:var(--teal);font-weight:800}
+.feat .badge{display:inline-grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--teal-wash);border:1px solid rgba(59,227,195,.3);color:var(--teal)}
+.feat.alt .badge{background:rgba(143,114,255,.1);border-color:rgba(143,114,255,.35);color:var(--violet)}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;counter-reset:s;list-style:none;margin:0;padding:0}
+.steps li{position:relative;padding:26px 22px 24px;border-radius:24px;border:1px solid var(--line);background:linear-gradient(180deg,var(--card-hi),var(--card))}
+.steps li::before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:44px;height:44px;border-radius:14px;margin-bottom:16px;
+  font:700 20px var(--display);color:var(--teal-ink);background:linear-gradient(180deg,#63F2D6,#22C3A4);box-shadow:0 8px 22px -8px rgba(59,227,195,.8)}
+.steps li:not(:last-child)::after{content:"";position:absolute;top:47px;right:-15px;width:16px;height:2px;background:var(--line2)}
+.steps h3{margin:0 0 6px;font:700 20px var(--display)}
+.steps p{margin:0;color:var(--muted);font-size:15.5px}
+.tablewrap{border:1px solid var(--line);border-radius:26px;overflow:hidden;background:var(--card)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:18px 22px;text-align:left;border-top:1px solid var(--line)}
+thead th{border-top:0;font:600 13px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);background:var(--well)}
+td{font-size:16px}
+td.ca{font:500 16px var(--mono);color:#5A5594}
+td.ca mark{background:none;color:var(--teal);font-weight:800}
+td.r,th.r{text-align:right}
+tbody tr:hover{background:rgba(255,255,255,.015)}
+.tnote{margin:14px 4px 0;color:var(--dim);font-size:14.5px;text-align:center}
+.split{display:grid;grid-template-columns:1.05fr 1fr;gap:36px;align-items:center;padding:44px;border-radius:32px;border:1px solid var(--rim);
+  background:radial-gradient(600px 300px at 0% 0%,rgba(91,69,201,.25),transparent 70%),linear-gradient(180deg,var(--card-hi),var(--card))}
+.split h2{text-align:left}
+.split p{margin:0 0 12px;color:var(--muted);font-size:17px}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.checks li{display:flex;gap:14px;align-items:flex-start;padding:16px 18px;border-radius:18px;background:var(--well);border:1px solid var(--line);font-size:16px}
+.checks .ck{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--teal);color:var(--teal-ink)}
+.faq{max-width:780px;margin:0 auto}
+.faq details{border:1px solid var(--line);border-radius:20px;background:var(--card);margin-bottom:12px;transition:border-color .2s}
+.faq details[open]{border-color:var(--line2)}
+.faq summary{cursor:pointer;list-style:none;padding:20px 24px;font:600 19px var(--display);display:flex;justify-content:space-between;align-items:center;gap:16px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";display:grid;place-items:center;flex:none;width:32px;height:32px;border-radius:10px;background:var(--teal-wash);color:var(--teal);font:700 22px/1 var(--display)}
+.faq details[open] summary::after{content:"–"}
+.faq p{margin:0;padding:0 24px 22px;color:var(--muted);font-size:16.5px}
+.cta{max-width:1080px;margin:120px auto 0;padding:0 20px}
+.cta .box{position:relative;overflow:hidden;text-align:center;padding:56px 28px;border-radius:36px;border:1px solid var(--rim);
+  background:radial-gradient(500px 260px at 50% 0%,rgba(59,227,195,.16),transparent 70%),radial-gradient(700px 400px at 50% 120%,rgba(91,69,201,.4),transparent 70%),var(--card)}
+.cta h2{margin:0 0 10px;font:700 clamp(30px,5vw,48px)/1.05 var(--display)}
+.cta p{margin:0 auto 26px;color:var(--muted);max-width:44ch;font-size:17.5px}
+.mini{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;max-width:640px;margin:0 auto}
+.mini input{flex:1 1 170px;min-width:0;height:60px;padding:0 18px;border-radius:16px;background:var(--well);border:1.5px solid var(--line);font:800 22px var(--mono);color:var(--text)}
+.mini input::placeholder{color:var(--ghost)}
+.mini input:focus{outline:none;border-color:var(--teal)}
+.mini button{height:60px;padding:0 26px;border:0;border-radius:16px;background:linear-gradient(180deg,#63F2D6,#22C3A4);color:var(--teal-ink);font:700 19px var(--display);box-shadow:0 14px 34px -14px rgba(59,227,195,.85)}
+footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1px solid var(--line)}
+.fgrid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:28px}
+.fgrid h4{margin:0 0 12px;font:600 14px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.fgrid a{display:block;text-decoration:none;color:var(--dim);margin:7px 0;font-size:15.5px}
+.fgrid a:hover{color:var(--text)}
+.fgrid .about{color:var(--muted);font-size:15.5px;max-width:30ch;margin-top:14px}
+.fine{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;margin-top:36px;padding-top:22px;border-top:1px solid var(--line);color:var(--dim);font-size:14px}
+
+@media (max-width:860px){
+  .nav{display:none}
+  .steps{grid-template-columns:1fr 1fr}
+  .steps li::after{display:none}
+  .fgrid{grid-template-columns:1fr 1fr}
+}
+@media (max-width:640px){
+  .pill span{display:none}
+  .hero{padding-top:36px}
+  .stage{padding-top:30px}
+  .bot{width:150px;height:102px;margin-bottom:-30px}
+  .card{padding:26px 16px 20px;border-radius:26px}
+  .tabs{border-radius:18px;padding:5px}
+  .tab{height:52px;font-size:16.5px;gap:8px;border-radius:14px}
+  .tab .ic{width:22px;height:22px}
+  .fields{grid-template-columns:1fr;gap:12px}
+  .gapdots{display:none}
+  .hint{flex-direction:column;gap:2px}
+  .field input{height:72px;font-size:28px}
+  .choice,.switchrow{padding:16px;gap:14px}
+  .choice .t,.switchrow .t{font-size:18px}
+  .est{grid-template-columns:1fr}
+  .est > div + div{border-left:0;border-top:1px solid var(--line)}
+  .go{height:68px;font-size:21px}
+  .duo,.steps{grid-template-columns:1fr}
+  .split{grid-template-columns:1fr;padding:26px}
+  th,td{padding:14px 12px;font-size:14.5px}
+  td.ca{font-size:14px}
+  .hide-m{display:none}
+  .fgrid{grid-template-columns:1fr 1fr}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="bgfx" aria-hidden="true" id="bgfx"></div>
+<div class="z">
+<header class="top">
+  <div class="in">
+    <a class="logo" href="./" aria-label="Home">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="6" width="26" height="21" rx="8" fill="#5B45C9"/><rect x="7" y="11" width="18" height="11" rx="5" fill="#0B0C15"/><rect x="10" y="14" width="4" height="5" rx="2" fill="#3BE3C3"/><rect x="18" y="14" width="4" height="5" rx="2" fill="#3BE3C3"/><rect x="15" y="1" width="2" height="5" rx="1" fill="#8F72FF"/></svg>
+    </a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#make">Make an address</a>
+      <a href="#how">How it works</a>
+      <a href="#times">How long</a>
+      <a href="#safe">Is it safe?</a>
+      <a href="#faq">Questions</a>
+    </nav>
+    <span class="sp"></span>
+    <span class="pill">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <span id="pill">Keys made on your device</span>
+    </span>
+  </div>
+</header>
+
+<section class="hero">
+  <span class="kick"><i></i>Solana vanity addresses</span>
+  <h1>Put your word in your address.</h1>
+  <p>A Solana wallet or token address that starts or ends the way you want. Your own graphics card finds it, and the key never leaves your device.</p>
+</section>
+
+<section class="stage" id="make" aria-label="Make an address">
+  <svg class="bot" viewBox="0 0 176 120" aria-hidden="true">
+    <defs>
+      <linearGradient id="head" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7A5CF0"/><stop offset="1" stop-color="#4A35B8"/></linearGradient>
+      <linearGradient id="visor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0E0C22"/><stop offset="1" stop-color="#1B1640"/></linearGradient>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
+    </defs>
+    <rect x="86" y="6" width="4" height="20" rx="2" fill="#8F72FF"/>
+    <circle class="bulb" cx="88" cy="8" r="7" fill="#3BE3C3"/>
+    <circle class="bulb" cx="88" cy="8" r="9" fill="#3BE3C3" opacity=".35" filter="url(#glow)"/>
+    <rect x="38" y="24" width="100" height="78" rx="30" fill="url(#head)"/>
+    <rect x="38" y="24" width="100" height="40" rx="30" fill="#fff" opacity=".07"/>
+    <rect x="28" y="54" width="14" height="26" rx="7" fill="#5B45C9"/>
+    <rect x="134" y="54" width="14" height="26" rx="7" fill="#5B45C9"/>
+    <rect x="52" y="42" width="72" height="42" rx="20" fill="url(#visor)"/>
+    <g class="eyes">
+      <rect class="eye" x="66" y="52" width="13" height="22" rx="6.5" fill="#3BE3C3"/>
+      <rect class="eye" x="97" y="52" width="13" height="22" rx="6.5" fill="#3BE3C3"/>
+      <rect x="66" y="52" width="44" height="22" fill="#3BE3C3" opacity=".18" filter="url(#glow)"/>
+    </g>
+    <g class="happy" fill="none" stroke="#3BE3C3" stroke-width="5" stroke-linecap="round">
+      <path d="M65 68q7-12 14 0"/><path d="M97 68q7-12 14 0"/>
+    </g>
+    <rect x="22" y="96" width="34" height="18" rx="9" fill="#6A50E0"/>
+    <rect x="120" y="96" width="34" height="18" rx="9" fill="#6A50E0"/>
+    <rect x="26" y="99" width="8" height="12" rx="4" fill="#8B74F5"/><rect x="36" y="99" width="8" height="12" rx="4" fill="#8B74F5"/>
+    <rect x="132" y="99" width="8" height="12" rx="4" fill="#8B74F5"/><rect x="142" y="99" width="8" height="12" rx="4" fill="#8B74F5"/>
+  </svg>
+
+  <div class="card" id="card">
+    <div class="tabs" role="tablist" aria-label="Address type">
+      <button class="tab" role="tab" aria-selected="false" data-mode="token">
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M9.5 12h5M12 9.5v5"/></svg></span>
+        Token address
+      </button>
+      <button class="tab" role="tab" aria-selected="true" data-mode="wallet">
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3.5"/><path d="M16 13.5h2"/><path d="M6 7l9-3 1.5 3"/></svg></span>
+        Wallet
+      </button>
+    </div>
+
+    <div class="fields">
+      <label class="field"><span>Starts with</span>
+        <input id="pre" maxlength="10" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ALFA">
+      </label>
+      <span class="gapdots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <label class="field"><span>Ends with</span>
+        <input id="suf" maxlength="10" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="pump">
+      </label>
+    </div>
+    <div class="hint"><span><b>#</b> for any number, <b>*</b> for any letter</span><span>No 0, O, I or l</span></div>
+
+    <div class="preview">
+      <span class="paddr" id="paddr" aria-label="Address preview"></span>
+      <span class="count" id="count">0/44</span>
+    </div>
+    <div class="status"><i class="dot"></i><span id="statusText">Getting ready</span></div>
+
+    <p class="note err" id="err" hidden></p>
+    <p class="note tip" id="tip" hidden></p>
+
+    <div class="choices" role="radiogroup" aria-label="Capitalization">
+      <button type="button" class="choice" role="radio" aria-checked="true" data-case="any">
+        <span class="radio"></span><span><span class="t">Any capitalization</span><span class="d">Much faster. ALFA also matches alfa or aLfA.</span></span>
+      </button>
+      <button type="button" class="choice" role="radio" aria-checked="false" data-case="exact">
+        <span class="radio"></span><span><span class="t">Exact capitalization</span><span class="d">Every letter matches exactly as typed.</span></span>
+      </button>
+    </div>
+
+    <button type="button" class="switchrow" id="fast" role="switch" aria-checked="false" hidden>
+      <span class="switch"></span>
+      <span><span class="t"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>Fast mode</span>
+      <span class="d">Our cloud GPU takes the long words. It makes the key and seals it so only this browser can open it.</span></span>
+    </button>
+
+    <p class="note tip" id="slow" hidden></p>
+    <p class="note info" id="env" hidden></p>
+
+    <div class="est">
+      <div>
+        <span class="lab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Estimated time</span>
+        <div class="big" id="sAvg">–</div>
+        <div class="small" id="sSub">Measuring this device</div>
+      </div>
+      <div>
+        <span class="lab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M6 7h12M6 12h12M6 17h12"/></svg>Cost</span>
+        <div class="big" id="sCost">Free</div>
+        <div class="small" id="sCostSub">Runs on your device</div>
+      </div>
+    </div>
+
+    <div class="runbox" id="runbox" hidden>
+      <div class="bar"><i id="bar"></i></div>
+      <div class="runmeta"><span id="rLuck"></span><span id="rTime"></span></div>
+    </div>
+
+    <button class="go" id="go" disabled>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg>
+      <span id="goText">Generate address</span>
+    </button>
+    <p class="note err" id="runErr" hidden></p>
+    <div class="under"><a href="#safe">Is this safe?</a><a href="#times">How long will it take?</a></div>
+  </div>
+</section>
+
+<section class="results" id="results" aria-live="polite"></section>
+
+<section class="sec" id="what">
+  <h2>Two kinds of addresses</h2>
+  <p class="lead">Your word in a wallet people send to, or in the token address people paste into every chart.</p>
+  <div class="duo">
+    <article class="feat">
+      <span class="badge"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3.5"/><path d="M16 13.5h2"/><path d="M6 7l9-3 1.5 3"/></svg></span>
+      <h3>Wallet</h3>
+      <p>A wallet that's recognizable at a glance, for your brand, your project treasury, or yourself. Import it into Phantom or Solflare in seconds.</p>
+      <span class="chipaddr"><b>ALFA</b>7xQm2hK9vRt3pWd8nYc4eLs6uB1jZgF5</span>
+    </article>
+    <article class="feat alt">
+      <span class="badge"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M9.5 12h5M12 9.5v5"/></svg></span>
+      <h3>Token address</h3>
+      <p>A mint address that ends the way launchpad tokens do, or carries your ticker. Use the keypair as the mint when you create the token.</p>
+      <span class="chipaddr"><b>Moon</b>4tBx8qRk2NdV7sLh9WcF3mYz6aE5j<b>pump</b></span>
+    </article>
+  </div>
+</section>
+
+<section class="sec" id="how">
+  <h2>From word to working key</h2>
+  <p class="lead">No account and no download. Everything happens in this tab.</p>
+  <ol class="steps">
+    <li><h3>Pick your word</h3><p>Choose how the address starts, ends, or both.</p></li>
+    <li><h3>Pick capitalization</h3><p>Any capitalization is many times faster than exact.</p></li>
+    <li><h3>Your GPU grinds</h3><p>Your graphics card checks millions of keypairs until one matches.</p></li>
+    <li><h3>Save your key</h3><p>Paste it into Phantom or Solflare, or download the keypair file.</p></li>
+  </ol>
+</section>
+
+<section class="sec" id="times">
+  <h2>How long does it take?</h2>
+  <p class="lead">Each extra character makes a match about 58 times rarer, or 29 times with any capitalization. Times use the speed measured on this device.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Address</th><th class="hide-m">Capitalization</th><th class="r">Keys on average</th><th class="r">On this device</th></tr></thead>
+      <tbody id="timesBody"></tbody>
+    </table>
+  </div>
+  <p class="tnote" id="timesNote">Speed is measured when the page loads.</p>
+</section>
+
+<section class="sec" id="safe">
+  <div class="split">
+    <div>
+      <h2>Your key, made and checked on your device</h2>
+      <p>The keypair is created by your browser's built-in cryptography on your own hardware. Nothing is uploaded, and the page keeps working with your internet switched off.</p>
+      <p>Fast mode is the one exception: our server makes the key, locks it with a key only your browser holds, and deletes its copy. For wallets that will hold real money, keep Fast mode off.</p>
+    </div>
+    <ul class="checks">
+      <li><span class="ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Every match from the graphics card is re-derived with WebCrypto before you see it.</li>
+      <li><span class="ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Fast mode results are opened in your browser and rejected if the key doesn't produce the promised address.</li>
+      <li><span class="ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Nothing is stored. Close the tab and the key is gone, so save it first.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="sec" id="faq">
+  <h2>Questions</h2>
+  <div class="faq">
+    <details><summary>How do I use the key?</summary><p>In Phantom or Solflare, choose Add wallet, then Import private key, and paste it. For the Solana CLI, use the downloaded keypair file. For a token, use the keypair as the mint when you create the token.</p></details>
+    <details><summary>Why do some words take so much longer?</summary><p>Each character adds about 58 times more work, or 29 times with any capitalization. Solana addresses also almost always start with 2–9 or A–H, so other first characters are 25 to 60 times rarer again. Short words and uppercase starts are fastest.</p></details>
+    <details><summary>Why does Token address end in pump?</summary><p>Many launchpads give token addresses a recognizable ending such as pump. The Token address tab fills that ending in and matches it exactly, so your mint looks native to the launchpad. You can change it.</p></details>
+    <details><summary>What does it cost?</summary><p>Searching on your own device is free. Fast mode uses our cloud GPU for longer words.</p></details>
+    <details><summary>Can someone else get my key from the address?</summary><p>No. The address comes from the key in one direction only, so a nice-looking address gives nobody a shortcut to your key.</p></details>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="box">
+    <h2>Your word is waiting</h2>
+    <p>Type it here and we'll take you straight to the generator.</p>
+    <div class="mini">
+      <input id="ctaPre" maxlength="10" autocomplete="off" spellcheck="false" placeholder="Starts with" aria-label="Starts with">
+      <input id="ctaSuf" maxlength="10" autocomplete="off" spellcheck="false" placeholder="Ends with" aria-label="Ends with">
+      <button type="button" id="ctaGo">Make it</button>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="fgrid">
+    <div>
+      <span class="logo" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 32 32"><rect x="3" y="6" width="26" height="21" rx="8" fill="#5B45C9"/><rect x="7" y="11" width="18" height="11" rx="5" fill="#0B0C15"/><rect x="10" y="14" width="4" height="5" rx="2" fill="#3BE3C3"/><rect x="18" y="14" width="4" height="5" rx="2" fill="#3BE3C3"/><rect x="15" y="1" width="2" height="5" rx="1" fill="#8F72FF"/></svg></span>
+      <p class="about">Vanity addresses for Solana, ground on your own graphics card.</p>
+    </div>
+    <div><h4>Make</h4><a href="#make" data-goto="wallet">Wallet address</a><a href="#make" data-goto="token">Token address</a></div>
+    <div><h4>Learn</h4><a href="#how">How it works</a><a href="#times">How long it takes</a><a href="#faq">Questions</a></div>
+    <div><h4>Trust</h4><a href="#safe">Is it safe?</a><a href="#safe">Where keys are made</a></div>
+  </div>
+  <div class="fine"><span>Not affiliated with the Solana Foundation.</span><span>Keys are made on your device unless you turn on Fast mode.</span></div>
+</footer>
+</div>
+
+<script type="text/plain" id="workerSrc">
+const ALPH='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function b58(b){let z=0;while(z<b.length&&b[z]===0)z++;const d=[0];for(let i=z;i<b.length;i++){let c=b[i];for(let j=0;j<d.length;j++){c+=d[j]<<8;d[j]=c%58;c=(c/58)|0;}while(c){d.push(c%58);c=(c/58)|0;}}let s='';for(let k=0;k<z;k++)s+='1';for(let k=d.length-1;k>=0;k--)s+=ALPH[d[k]];return s;}
+let cur=0,running=false,pre=[],suf=[];
+function sets(a){return a.map(function(s){const t=new Uint8Array(128);for(let i=0;i<s.length;i++)t[s.charCodeAt(i)]=1;return t;});}
+function match(a){for(let i=0;i<pre.length;i++)if(!pre[i][a.charCodeAt(i)])return false;const o=a.length-suf.length;for(let j=0;j<suf.length;j++)if(!suf[j][a.charCodeAt(o+j)])return false;return true;}
+const ch=new MessageChannel();let wake=null;ch.port1.onmessage=function(){const w=wake;wake=null;if(w)w();};
+function breathe(){return new Promise(function(r){wake=r;ch.port2.postMessage(0);});}
+async function loop(id){
+  const S=crypto.subtle,A={name:'Ed25519'},U=['sign','verify'],B=48;
+  let n=0,last=performance.now(),sample='';
+  while(running&&id===cur){
+    await breathe();
+    if(!running||id!==cur)break;
+    const ks=[];for(let i=0;i<B;i++)ks.push(S.generateKey(A,true,U));
+    const kp=await Promise.all(ks);
+    const pb=await Promise.all(kp.map(function(k){return S.exportKey('raw',k.publicKey);}));
+    if(id!==cur)return;
+    for(let i=0;i<B;i++){
+      const pub=new Uint8Array(pb[i]);const a=b58(pub);
+      if(match(a)){
+        postMessage({type:'progress',runId:id,n:n+i+1,sample:a});n=-(i+1);
+        const p8=new Uint8Array(await S.exportKey('pkcs8',kp[i].privateKey));
+        const sk=new Uint8Array(64);sk.set(p8.subarray(p8.length-32),0);sk.set(pub,32);
+        postMessage({type:'found',runId:id,address:a,secret:sk});
+      }
+      if(i===0)sample=a;
+    }
+    n+=B;
+    const now=performance.now();
+    if(now-last>=100){postMessage({type:'progress',runId:id,n:n,sample:sample});n=0;last=now;}
+  }
+  if(n&&id===cur)postMessage({type:'progress',runId:id,n:n,sample:sample});
+}
+self.onmessage=function(e){const m=e.data;
+  if(m.type==='start'){pre=sets(m.pre);suf=sets(m.suf);cur=m.runId;running=true;loop(m.runId);}
+  else if(m.type==='stop'){running=false;}
+};
+(async function(){let ok=false;try{await crypto.subtle.generateKey({name:'Ed25519'},true,['sign','verify']);ok=true;}catch(e){}postMessage({type:'ready',ok:ok});})();
+</script>
+
+<script src="engine/pattern.js"></script>
+<script src="engine/gpu-engine.js"></script>
+<script>
+(() => {
+const VP = window.VanityPattern, VG = window.VanityGPU;
+const { ALPH, COMMON, b58 } = VP;
+const $ = id => document.getElementById(id);
+const now = () => performance.now();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const HC = Math.max(1, Math.min(navigator.hardwareConcurrency || 4, 32));
+const WORKER_SRC = $('workerSrc').textContent;
+const WHERE = { gpu: 'your GPU', cpu: 'your CPU', server: 'our cloud GPU' };
+
+const state = {
+  mode: 'wallet', anyCase: true, fast: false,
+  gpu: { status: 'pending', g: null, rate: 0 },
+  cpu: { status: 'pending', workers: [], perThread: 0, fallback: false, benchId: -1, benchOpen: false, benchCount: 0 },
+  server: { status: 'pending', info: null },
+  running: false, runId: 0, tries: 0, t0: 0, a: null, sample: '', speedWin: [],
+  found: null, results: [], placeholder: '', lastPaint: 0, runInfo: null,
+  job: null, serverRate: 0, ahead: 0, serverStatus: '', serverElapsed: 0
+};
+
+/* ---------- formatting ---------- */
+function fmtBig(x){
+  if (!isFinite(x)) return '∞';
+  if (x < 1000) return String(Math.round(x));
+  if (x >= 1e15) return x.toExponential(1).replace('e+', '×10^');
+  for (const [v, s] of [[1e12,'T'],[1e9,'B'],[1e6,'M'],[1e3,'K']]) if (x >= v){ const n = x / v; return (n < 10 ? n.toFixed(1) : Math.round(n)).toString().replace(/\.0$/,'') + s; }
+}
+function fmtWait(s){
+  if (!isFinite(s)) return '–';
+  if (s < 1) return 'under 1 sec';
+  if (s < 60) return Math.round(s) + ' sec';
+  if (s < 3600) return Math.round(s/60) + ' min';
+  if (s < 86400) return (s/3600 < 10 ? (s/3600).toFixed(1) : Math.round(s/3600)).toString().replace(/\.0$/,'') + ' hr';
+  if (s < 86400*365){ const d = Math.round(s/86400); return d + (d === 1 ? ' day' : ' days'); }
+  const y = Math.round(s / 31536000); return y >= 1000 ? '1,000+ years' : y + (y === 1 ? ' year' : ' years');
+}
+const fmtRange = (avg) => {
+  const lo = Math.log(2) * avg, hi = Math.log(10) * avg;
+  if (!isFinite(avg)) return '–';
+  if (hi < 1) return 'Under 1 sec';
+  const a = fmtWait(lo), b = fmtWait(hi);
+  return a === b ? cap(b) : `${cap(a)} – ${b}`;
+};
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+function fmtElapsed(ms){
+  const s = Math.floor(ms/1000), m = Math.floor(s/60), h = Math.floor(m/60);
+  if (h) return `${h} hr ${m%60} min`;
+  if (m) return `${m} min ${s%60} sec`;
+  return `${(ms/1000).toFixed(1)} sec`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const toB64 = u8 => btoa(String.fromCharCode(...u8));
+const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+function note(id, html){ $(id).innerHTML = html || ''; $(id).hidden = !html; }
+
+/* ---------- CPU engine ---------- */
+function fakeWorker(){
+  const scope = { onmessage: null };
+  const fw = { onmessage: null, onerror: null, terminate(){}, postMessage(d){ setTimeout(() => scope.onmessage && scope.onmessage({data: d}), 0); } };
+  const post = d => setTimeout(() => fw.onmessage && fw.onmessage({data: d}), 0);
+  new Function('self', 'postMessage', WORKER_SRC)(scope, post);
+  return fw;
+}
+function spawn(fake){
+  return new Promise(res => {
+    let done = false; const fin = v => { if (!done){ done = true; res(v); } };
+    let w;
+    try { w = fake ? fakeWorker() : new Worker(URL.createObjectURL(new Blob([WORKER_SRC], {type: 'text/javascript'}))); }
+    catch (e) { return fin(null); }
+    w.onmessage = e => { if (e.data && e.data.type === 'ready') fin({ w, ok: e.data.ok }); };
+    w.onerror = () => fin(null);
+    setTimeout(() => fin(null), 5000);
+  });
+}
+function onWorker(m){
+  const c = state.cpu;
+  if (m.type === 'progress'){
+    if (c.benchOpen && m.runId === c.benchId) c.benchCount += m.n;
+    if (state.running && m.runId === state.runId){ state.tries += m.n; state.speedWin.push([now(), m.n]); if (m.sample) state.sample = m.sample; }
+  } else if (m.type === 'found' && m.runId === state.runId){
+    onFound(m);
+  }
+}
+async function cpuInit(){
+  const c = state.cpu;
+  let first = await spawn(false);
+  if (!first){ try { first = await spawn(true); } catch { first = null; } c.fallback = !!first; }
+  if (!first || !first.ok){ c.status = 'off'; return; }
+  c.workers = [first.w];
+  if (!c.fallback){
+    const more = await Promise.all(Array.from({length: HC - 1}, () => spawn(false)));
+    more.forEach(r => { if (r && r.ok) c.workers.push(r.w); });
+  }
+  c.workers.forEach(w => w.onmessage = e => onWorker(e.data));
+  await new Promise(res => {
+    const id = ++state.runId; c.benchId = id; c.benchCount = 0;
+    c.workers.forEach(w => w.postMessage({ type: 'start', runId: id, pre: [''], suf: [] }));
+    setTimeout(() => { c.benchOpen = true; c.benchCount = 0; }, 300);
+    setTimeout(() => {
+      c.benchOpen = false;
+      c.workers.forEach(w => w.postMessage({ type: 'stop' }));
+      c.perThread = c.benchCount / c.workers.length;
+      setTimeout(res, 120);
+    }, 1300);
+  });
+  c.status = 'ready';
+}
+
+/* ---------- GPU engine ---------- */
+async function gpuInit(cpuReady){
+  const G = state.gpu;
+  try {
+    if (!('gpu' in navigator)) throw new Error('no-webgpu');
+    const inline = $('wgsl');
+    const wgsl = inline ? inline.textContent : await (await fetch('engine/vanity.wgsl')).text();
+    const g = await VG.create(wgsl, { onLost: () => {
+      G.status = 'off';
+      if (state.running && state.runInfo && state.runInfo.engine === 'gpu'){ stop(); note('runErr', 'The graphics card stopped responding. Press Generate again to continue on your processor.'); }
+      refresh();
+    }});
+    const st = await g.selfTest();
+    if (!st.ok){ console.warn('GPU self-test failed', st); throw new Error('selftest'); }
+    await cpuReady;
+    await VG.bench(g, 1000, 90);
+    G.g = g; G.rate = g.rate; G.status = 'ready';
+  } catch (e) {
+    console.info('GPU engine unavailable:', e && e.message);
+    G.status = 'off';
+  }
+  refresh();
+}
+
+/* ---------- cloud GPU (server) ---------- */
+async function serverInit(){
+  if (location.protocol === 'file:'){ state.server.status = 'off'; refresh(); return; }
+  try {
+    const r = await fetch('api/status', { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    state.server.info = await r.json(); state.server.status = 'ready';
+  } catch { state.server.status = 'off'; }
+  refresh();
+  if (state.server.status === 'ready') resumeSavedJob();
+}
+setInterval(async () => {
+  if (state.server.status !== 'ready' || state.running || !state.fast) return;
+  try { const r = await fetch('api/status', { cache: 'no-store' }); if (r.ok){ state.server.info = await r.json(); update(); } } catch {}
+}, 15000);
+
+function idb(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('vanity', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('jobs', { keyPath: 'id' });
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function idbDo(mode, fn){
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('jobs', mode); const st = tx.objectStore('jobs'); const req = fn(st);
+    tx.oncomplete = () => res(req && req.result); tx.onerror = () => rej(tx.error);
+  });
+}
+const idbPut = v => idbDo('readwrite', s => s.put(v)).catch(() => {});
+const idbDel = id => idbDo('readwrite', s => s.delete(id)).catch(() => {});
+const idbAll = () => idbDo('readonly', s => s.getAll()).catch(() => []);
+
+async function openSealed(j, key, a){
+  const raw = await crypto.subtle.decrypt({ name: 'RSA-OAEP' }, key, fromB64(j.sealed.wrappedKey));
+  const aes = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['decrypt']);
+  const sk = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(j.sealed.iv) }, aes, fromB64(j.sealed.ciphertext)));
+  const pub = await VG.pubFromSeed(sk.slice(0, 32));
+  const addr = b58(pub);
+  // Never trust the server: the key must produce the promised address, and the address must match the pattern.
+  if (sk.length !== 64 || addr !== j.address || b58(sk.slice(32)) !== addr || !VP.matcher(a.pre.sets, a.suf.sets)(addr)) throw Object.assign(new Error('verify'), { code: 'verify' });
+  return sk;
+}
+const SERVER_ERR = {
+  'too-slow': b => `This word would take about ${fmtWait(b.avgSeconds)} even in Fast mode. Remove a letter or two and try again.`,
+  'queue-full': () => 'Fast mode is busy right now. Try again in a few minutes.',
+  'one-at-a-time': () => 'You already have a Fast mode search running. Wait for it to finish or stop it first.',
+  'time-limit': () => 'The server stopped the search before finding a match. Shorten the word and try again.',
+  'abandoned': () => 'The server stopped the search because this page stopped checking in.',
+  'gone': () => 'The server no longer has this search. Start a new one.',
+  'engine': () => 'The server ran into a problem. Try again.',
+  'prefix-one': () => 'Addresses that start with 1 can only be searched on your own processor.',
+  'verify': () => 'The server sent a key that did not match its address, so it was thrown away. Try again.',
+};
+const serverErrText = (code, body) => (SERVER_ERR[code] || (() => 'Couldn’t reach the server. Check your connection and try again.'))(body || {});
+
+async function runServer(id, a, saved){
+  let job = saved;
+  try {
+    if (!job){
+      const kp = await crypto.subtle.generateKey({ name: 'RSA-OAEP', modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, false, ['encrypt', 'decrypt']);
+      const spki = new Uint8Array(await crypto.subtle.exportKey('spki', kp.publicKey));
+      const res = await fetch('api/jobs', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prefix: a.preRaw, suffix: a.sufRaw, anyCase: a.anyCase, recipientKey: toB64(spki) }) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw Object.assign(new Error('server'), { code: body.error, body });
+      job = { id: body.id, key: kp.privateKey, prefix: a.preRaw, suffix: a.sufRaw, anyCase: a.anyCase, mode: state.mode, created: Date.now() };
+      await idbPut(job);
+    }
+    state.job = job;
+    while (state.running && id === state.runId){
+      const r = await fetch('api/jobs/' + job.id, { cache: 'no-store' });
+      if (r.status === 404) throw Object.assign(new Error('gone'), { code: 'gone' });
+      if (!r.ok) throw Object.assign(new Error('server'), { code: 'network' });
+      const j = await r.json();
+      if (id !== state.runId) return;
+      state.tries = j.tries; state.serverRate = j.rate || state.serverRate; state.ahead = j.ahead || 0;
+      state.serverStatus = j.status; state.serverElapsed = j.elapsed || 0;
+      if (j.status === 'done'){
+        const secret = await openSealed(j, job.key, a);
+        job.done = true; idbDel(job.id);
+        onFound({ runId: id, address: j.address, secret });
+        return;
+      }
+      if (j.status === 'failed' || j.status === 'canceled') throw Object.assign(new Error(j.status), { code: j.error || j.status });
+      await sleep(1500);
+    }
+  } catch (e) {
+    if (id !== state.runId) return;
+    if (job){ job.done = true; idbDel(job.id); }
+    note('runErr', serverErrText(e.code, e.body));
+    if (state.running) stop();
+  }
+}
+async function resumeSavedJob(){
+  const saved = (await idbAll()).sort((x, y) => y.created - x.created);
+  if (!saved.length || state.running) return;
+  const job = saved[0];
+  saved.slice(1).forEach(j => idbDel(j.id));
+  if (Date.now() - job.created > 2 * 86400 * 1000){ idbDel(job.id); return; }
+  $('pre').value = job.prefix; $('suf').value = job.suffix;
+  setMode(job.mode || 'wallet', true); setCase(job.anyCase); setFast(true);
+  start(job);
+}
+
+/* ---------- engine choice ---------- */
+function engine(){
+  if (state.fast && state.server.status === 'ready') return 'server';
+  if (state.gpu.status === 'ready') return 'gpu';
+  if (state.gpu.status === 'pending' && 'gpu' in navigator) return 'gpu';
+  return 'cpu';
+}
+const engineReady = e => state[e].status === 'ready';
+function setFast(on){ state.fast = !!on; $('fast').setAttribute('aria-checked', String(state.fast)); refresh(); }
+function refresh(){
+  $('fast').hidden = state.server.status !== 'ready';
+  const e = engine();
+  $('pill').textContent = e === 'server' ? 'Sealed delivery from our server' : 'Keys made on your device';
+  let env = '';
+  if (e === 'cpu' && state.gpu.status === 'off' && state.cpu.status === 'ready'){
+    env = 'Your browser isn’t sharing the graphics card, so this runs on your processor, which is much slower. The latest Chrome or Edge on a laptop or desktop can usually use the GPU.';
+    if (state.cpu.workers.length < HC) env += ` Only ${state.cpu.workers.length} of ${HC} processor threads are available here, likely because the page is open inside a preview window.`;
+  }
+  note('env', env);
+  update();
+  renderTimes();
+}
+
+/* ---------- UI ---------- */
+function makePlaceholder(){
+  const r = crypto.getRandomValues(new Uint8Array(44));
+  let s = COMMON[r[0] % COMMON.length];
+  for (let i = 1; i < 44; i++) s += ALPH[r[i] % 58];
+  return s;
+}
+function liveRate(){
+  const t = now();
+  while (state.speedWin.length && t - state.speedWin[0][0] > 2500) state.speedWin.shift();
+  if (state.speedWin.length < 2) return 0;
+  const span = (t - state.speedWin[0][0]) / 1000;
+  const n = state.speedWin.reduce((a, x) => a + x[1], 0);
+  return span > 0.4 ? n / span : 0;
+}
+function engineRate(e){
+  if (state.running && state.runInfo && state.runInfo.engine === e){
+    if (e === 'server') return state.serverRate || (state.server.info ? state.server.info.rate : 0);
+    const r = liveRate(); if (r) return r;
+  }
+  if (e === 'gpu') return state.gpu.rate;
+  if (e === 'server') return state.server.info ? state.server.info.rate : 0;
+  return state.cpu.perThread * state.cpu.workers.length;
+}
+const cleanVal = id => $(id).value.replace(/\s+/g, '');
+const deviceRate = () => state.gpu.status === 'ready' ? state.gpu.rate : (state.cpu.status === 'ready' ? engineRate('cpu') : 0);
+
+function update(){
+  const a = VP.analyze($('pre').value, $('suf').value, state.anyCase);
+  state.a = a;
+  let err = '', tip = '', slow = '';
+  if (a.error === 'symbols') err = 'Use letters and numbers only, plus # and *.';
+  else if (a.error === 'chars'){
+    err = `${a.bad.map(c => `“${esc(c)}”`).join(', ')} can't appear in a Solana address. Addresses never contain 0, uppercase O, uppercase I or lowercase l.` +
+          (state.anyCase ? '' : ' Pick Any capitalization to let O, I and l match o, i and L.');
+  } else if (a.error) err = `Keep both parts to ${VP.MAX_TOTAL} characters in total.`;
+
+  const e = engine();
+  if (!err && (e === 'gpu' || e === 'server') && a.pre.sets.length && /^1+$/.test(a.pre.sets[0])) err = 'Addresses that start with 1 can only be searched on your processor.';
+  if (!err && a.pre.sets.length && a.pre.sets[0] && ![...a.pre.sets[0]].some(c => COMMON.includes(c))){
+    let pf = 0; for (const c of a.pre.sets[0]) pf += VP.probPrefixStr(c);
+    const x = Math.round(VP.probPrefixStr('A') / pf);
+    if (x >= 2) tip = `Solana addresses almost always start with 2–9 or A–H. Starting with “${esc(a.preRaw[0])}” makes a match about ${x}× rarer.`;
+  }
+
+  const rate = engineRate(e);
+  const p = err ? null : a.p;
+  const avg = p && rate ? 1 / (p * rate) : NaN;
+  const ready = engineReady(e);
+  const info = state.server.info;
+  const tooSlowForServer = e === 'server' && info && avg > info.maxExpectedSeconds;
+
+  $('count').textContent = `${a.preRaw.length + a.sufRaw.length}/44`;
+  if (!state.running){
+    $('sAvg').textContent = p && ready ? fmtRange(avg) : '–';
+    $('sAvg').classList.toggle('warn', avg > 3600);
+    $('sSub').textContent = !ready ? (state[e].status === 'pending' ? 'Measuring this device' : 'Not available here')
+      : p ? `1 in ${fmtBig(1/p)} keys on ${WHERE[e]}, ${fmtBig(rate)}/sec` : `${WHERE[e]}, ${fmtBig(rate)} keys/sec`.replace(/^./, c => c.toUpperCase());
+    $('sCost').textContent = 'Free';
+    $('sCostSub').textContent = e === 'server' ? 'Cloud GPU, free during beta' : 'Runs on your device';
+  }
+
+  if (!err && avg > 3600 && !state.running){
+    const per = state.anyCase ? 29 : 58;
+    if (tooSlowForServer) slow = `About <b>${fmtWait(avg)}</b> even in Fast mode, which is over its limit. Each extra letter makes a match about ${per}× rarer, so remove a letter or two.`;
+    else {
+      slow = `About <b>${fmtWait(avg)}</b> on ${WHERE[e]}. Each extra letter makes a match about ${per}× rarer.`;
+      if (a.preRaw && a.sufRaw) slow += ` On its own, “${esc(a.preRaw)}” takes about ${fmtWait(1/(VP.prefixProb(a.pre.sets)*rate))} and “${esc(a.sufRaw)}” about ${fmtWait(1/(VP.suffixProb(a.suf.sets)*rate))}.`;
+      if (e !== 'server' && state.server.status === 'ready' && info && info.rate > rate){
+        const sAvg = 1 / (p * info.rate);
+        if (sAvg <= info.maxExpectedSeconds) slow += ` Fast mode would take about ${fmtWait(sAvg)}.`;
+      }
+    }
+  }
+  note('err', err); note('tip', tip); note('slow', state.running ? '' : slow);
+
+  if (!state.running){
+    $('go').disabled = !ready || !!err || a.empty || !!tooSlowForServer;
+    $('goText').textContent = state.found ? 'Find another' : 'Generate address';
+    $('statusText').textContent = !ready ? (state[e].status === 'pending' ? 'Getting your device ready' : 'Not available in this browser')
+      : state.found ? `Found on ${WHERE[state.found.engine]} in ${fmtElapsed(state.found.elapsed)}`
+      : a.empty ? 'Type a word to see a preview' : `Ready on ${WHERE[e]}`;
+  }
+  paintPreview();
+}
+
+function paintPreview(){
+  const el = $('paddr');
+  if (state.found && !state.running){
+    const { address: a, pl, sl } = state.found;
+    el.innerHTML = `<span class="p">${a.slice(0, pl)}</span>${a.slice(pl, a.length - sl)}<span class="s">${a.slice(a.length - sl)}</span>`;
+    return;
+  }
+  const preT = cleanVal('pre').slice(0, 10), sufT = cleanVal('suf').slice(0, 10);
+  const mid = Math.max(0, 44 - preT.length - sufT.length);
+  const src = (state.running && state.sample) ? state.sample.padEnd(44, '·') : state.placeholder;
+  el.innerHTML = `<span class="p">${esc(preT)}</span>${src.slice(preT.length, preT.length + mid)}<span class="s">${esc(sufT)}</span>`;
+}
+
+function renderTimes(){
+  const rate = deviceRate();
+  const rows = [
+    ['ALFA', 'pre', true, 'Any'], ['pump', 'suf', false, 'Exact'], ['Degen', 'pre', true, 'Any'],
+    ['Moon', 'pre', false, 'Exact'], ['Ape|pump', 'both', true, 'Any'], ['Degen|pump', 'both', true, 'Any'],
+  ];
+  $('timesBody').innerHTML = rows.map(([w, kind, any, capLabel]) => {
+    const [pre, suf] = kind === 'pre' ? [w, ''] : kind === 'suf' ? ['', w] : w.split('|');
+    const a = VP.analyze(pre, suf, any);
+    const ca = `${pre ? `<mark>${pre}</mark>` : ''}${'…'}${suf ? `<mark>${suf}</mark>` : ''}`;
+    const keys = 1 / a.p;
+    return `<tr><td class="ca">${ca}</td><td class="hide-m">${capLabel}</td><td class="r">${fmtBig(keys)}</td><td class="r">${rate ? cap(fmtWait(keys / rate)) : '–'}</td></tr>`;
+  }).join('');
+  $('timesNote').textContent = rate ? `Measured on this device: ${fmtBig(rate)} keys per second on ${state.gpu.status === 'ready' ? 'your GPU' : 'your processor'}.` : 'Speed is measured when the page loads.';
+}
+
+/* ---------- run ---------- */
+function lock(d){
+  ['pre', 'suf'].forEach(id => $(id).disabled = d);
+  document.querySelectorAll('.choice, .tab, #fast').forEach(b => b.disabled = d);
+}
+function start(saved){
+  if (state.running) return;
+  const a = state.a, e = engine();
+  if (!engineReady(e) || !a || a.error || a.empty) return;
+  const id = ++state.runId;
+  Object.assign(state, { running: true, tries: 0, t0: now(), speedWin: [], sample: '', found: null, firstInRun: true, serverRate: 0, ahead: 0, serverStatus: 'queued', serverElapsed: 0, job: null });
+  state.runInfo = { pl: a.pre.sets.length, sl: a.suf.sets.length, mode: state.mode, p: a.p, engine: e };
+  note('runErr', ''); note('slow', '');
+  const c = $('card'); c.classList.remove('found'); c.classList.add('running');
+  $('make').classList.remove('happy'); $('make').classList.add('working');
+  $('goText').textContent = 'Stop'; $('go').classList.add('stop'); $('go').disabled = false;
+  $('runbox').hidden = false; lock(true);
+  $('statusText').textContent = e === 'server' ? 'Sending to our cloud GPU' : `Searching on ${WHERE[e]}`;
+  if (e === 'gpu') runGpu(id, a);
+  else if (e === 'cpu') state.cpu.workers.forEach(w => w.postMessage({ type: 'start', runId: id, pre: a.pre.sets, suf: a.suf.sets }));
+  else runServer(id, a, saved && saved.id ? saved : null);
+  requestAnimationFrame(tick);
+}
+async function runGpu(id, a){
+  try {
+    await VG.grind(state.gpu.g, {
+      pre: a.pre.sets, suf: a.suf.sets, match: VP.matcher(a.pre.sets, a.suf.sets), targetMs: 90,
+      isActive: () => state.running && id === state.runId,
+      onBatch: b => {
+        if (id !== state.runId) return;
+        state.tries += b.n; state.speedWin.push([now(), b.n]); state.sample = b.sample;
+        for (const h of b.hits) onFound({ runId: id, address: h.address, secret: h.secret });
+      }
+    });
+  } catch (err) {
+    console.warn(err);
+    if (id === state.runId && state.running){ stop(); state.gpu.status = 'off'; note('runErr', 'The graphics card stopped responding. Press Generate again to continue on your processor.'); refresh(); }
+  }
+}
+function stop(){
+  const info = state.runInfo;
+  state.running = false;
+  state.cpu.workers.forEach(w => w.postMessage({ type: 'stop' }));
+  if (state.job && !state.job.done){ const j = state.job; j.done = true; fetch('api/jobs/' + j.id, { method: 'DELETE' }).catch(() => {}); idbDel(j.id); }
+  const r = liveRate();
+  if (r && info){ if (info.engine === 'cpu') state.cpu.perThread = r / state.cpu.workers.length; else if (info.engine === 'gpu') state.gpu.rate = r; }
+  $('card').classList.remove('running'); $('go').classList.remove('stop'); $('make').classList.remove('working');
+  $('runbox').hidden = true;
+  lock(false); update();
+}
+function tick(t){
+  if (!state.running) return;
+  if (t - state.lastPaint > 70){
+    state.lastPaint = t;
+    const info = state.runInfo, p = info.p, luck = 1 - Math.exp(-state.tries * p);
+    const isServer = info.engine === 'server';
+    paintPreview();
+    $('bar').style.width = (luck * 100).toFixed(1) + '%';
+    $('rLuck').textContent = `${fmtBig(state.tries)} keys tried. ${Math.round(luck * 100)}% of searches would have found it by now.`;
+    $('rTime').textContent = fmtElapsed(isServer ? state.serverElapsed * 1000 : t - state.t0);
+    if (isServer && state.job){
+      $('statusText').textContent = state.serverStatus === 'queued'
+        ? (state.ahead ? `Waiting for our cloud GPU, ${state.ahead} ${state.ahead === 1 ? 'search' : 'searches'} ahead` : 'Starting on our cloud GPU')
+        : 'Searching on our cloud GPU';
+    }
+    const r = engineRate(info.engine);
+    if (r){ $('sAvg').textContent = fmtRange(1 / (p * r)); $('sSub').textContent = `${fmtBig(r)} keys/sec on ${WHERE[info.engine]}`; }
+  }
+  requestAnimationFrame(tick);
+}
+function onFound(m){
+  const elapsed = state.runInfo.engine === 'server' ? state.serverElapsed * 1000 : now() - state.t0;
+  const res = { address: m.address, secret: new Uint8Array(m.secret), pl: state.runInfo.pl, sl: state.runInfo.sl,
+    mode: state.runInfo.mode, engine: state.runInfo.engine, tries: state.tries, elapsed, saved: false };
+  res.secret58 = b58(res.secret);
+  state.results.unshift(res);
+  if (state.firstInRun){
+    state.firstInRun = false; state.found = res;
+    stop();
+    $('card').classList.add('found');
+    $('make').classList.add('happy'); clearTimeout(state.happyT); state.happyT = setTimeout(() => $('make').classList.remove('happy'), 6000);
+    update();
+  }
+  renderResult(res);
+}
+
+function hl(a, pl, sl){ return `<span class="p">${a.slice(0, pl)}</span>${a.slice(pl, a.length - sl)}<span class="s">${a.slice(a.length - sl)}</span>`; }
+function renderResult(r){
+  const card = document.createElement('article');
+  card.className = 'res';
+  const title = r.mode === 'token' ? 'Your token address is ready' : 'Your wallet is ready';
+  const label = r.mode === 'token' ? 'Mint address' : 'Address';
+  card.innerHTML = `
+    <h2>${title}</h2>
+    <p class="sub">Found after ${fmtBig(r.tries)} keys in ${fmtElapsed(r.elapsed)} on ${WHERE[r.engine]}</p>
+    <div class="kv"><span class="k">${label}</span>
+      <div class="v">${hl(r.address, r.pl, r.sl)}</div>
+      <div class="btns"><button class="sm" data-act="copyAddr">Copy</button></div>
+    </div>
+    <div class="kv"><span class="k">Private key</span>
+      <div class="v masked" data-secret>${'•'.repeat(32)}</div>
+      <div class="btns"><button class="sm" data-act="reveal">Show</button><button class="sm" data-act="copyKey">Copy</button></div>
+    </div>
+    <div class="foot">
+      <p>Anyone with this key controls the ${r.mode === 'token' ? 'mint' : 'wallet'}. Save it now; closing the tab erases it.</p>
+      <button class="dl" data-act="download">Download keypair</button>
+    </div>`;
+  card.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const act = b.dataset.act;
+    if (act === 'copyAddr') copy(r.address, b);
+    if (act === 'copyKey'){ copy(r.secret58, b); r.saved = true; }
+    if (act === 'reveal'){
+      const v = card.querySelector('[data-secret]'); const shown = !v.classList.contains('masked');
+      v.classList.toggle('masked', shown); v.textContent = shown ? '•'.repeat(32) : r.secret58; b.textContent = shown ? 'Show' : 'Hide';
+    }
+    if (act === 'download'){
+      const blob = new Blob([JSON.stringify(Array.from(r.secret))], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = r.address + '.json';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      r.saved = true; b.textContent = 'Downloaded';
+    }
+  });
+  $('results').prepend(card);
+  if (state.found === r) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' });
+}
+async function copy(text, btn){
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove();
+  }
+  const old = btn.textContent; btn.textContent = 'Copied'; btn.classList.add('done');
+  setTimeout(() => { btn.textContent = old; btn.classList.remove('done'); }, 1400);
+}
+
+/* ---------- events ---------- */
+function clearFound(){ state.found = null; $('card').classList.remove('found'); }
+function setCase(any){
+  state.anyCase = !!any;
+  document.querySelectorAll('[data-case]').forEach(x => x.setAttribute('aria-checked', String((x.dataset.case === 'any') === state.anyCase)));
+  update();
+}
+function setMode(mode, keepFields){
+  state.mode = mode;
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', String(x.dataset.mode === mode)));
+  $('pre').placeholder = mode === 'token' ? 'Moon' : 'ALFA';
+  if (!keepFields){
+    if (mode === 'token'){ if (!cleanVal('suf')) $('suf').value = 'pump'; setCase(false); }
+    else { if (cleanVal('suf') === 'pump') $('suf').value = ''; setCase(true); }
+  }
+  clearFound(); update();
+}
+['pre', 'suf'].forEach(id => {
+  $(id).addEventListener('input', () => { clearFound(); update(); });
+  $(id).addEventListener('keydown', e => { if (e.key === 'Enter') start(); });
+});
+document.querySelectorAll('[data-case]').forEach(b => b.addEventListener('click', () => setCase(b.dataset.case === 'any')));
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+$('fast').addEventListener('click', () => setFast(!state.fast));
+$('go').addEventListener('click', () => state.running ? stop() : start());
+function ctaGo(){
+  if (state.running) { $('make').scrollIntoView({ behavior: 'smooth' }); return; }
+  $('pre').value = $('ctaPre').value.trim(); $('suf').value = $('ctaSuf').value.trim();
+  clearFound(); update();
+  $('make').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  setTimeout(() => $('pre').focus({ preventScroll: true }), 500);
+}
+$('ctaGo').addEventListener('click', ctaGo);
+['ctaPre', 'ctaSuf'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') ctaGo(); }));
+document.querySelectorAll('[data-goto]').forEach(a => a.addEventListener('click', () => { if (!state.running) setMode(a.dataset.goto); }));
+(() => { const fx = $('bgfx'), r = crypto.getRandomValues(new Uint16Array(120));
+  for (let i = 0; i < 40; i++){ const d = document.createElement('i'); d.style.left = (r[i*3] % 1000) / 10 + '%'; d.style.top = (r[i*3+1] % 1000) / 10 + '%'; d.style.opacity = (0.12 + (r[i*3+2] % 30) / 100).toFixed(2); fx.appendChild(d); } })();
+window.addEventListener('beforeunload', e => { if (state.results.some(r => !r.saved)){ e.preventDefault(); e.returnValue = ''; } });
+
+state.placeholder = makePlaceholder();
+update(); renderTimes();
+const cpuReady = cpuInit().then(() => refresh());
+gpuInit(cpuReady);
+serverInit();
+})();
+</script>
+</body>
+</html>

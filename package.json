@@ -1,0 +1,18 @@
+{
+  "name": "solana-vanity",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Solana vanity address generator: in-browser GPU/CPU engine plus an optional GPU server with sealed delivery.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "build:single": "node scripts/build-single.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "webgpu": "^0.6.2"
+  }
+}
