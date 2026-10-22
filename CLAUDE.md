@@ -24,6 +24,7 @@ A website that creates Solana wallet or token addresses starting or ending with 
 | `scripts/smoke.mjs` | End-to-end check of a running server (`npm run smoke -- <url>`) |
 | `scripts/pay-test.mjs` | Fast mode payment check against a fake Solana RPC (`npm run test:pay`) |
 | `scripts/browser-test.mjs` | Payment flow in Chromium with fake wallets (`npm run test:browser`, needs Playwright, see the file) |
+| `scripts/setup-server.sh` | One-command install on an Ubuntu VPS: packages, `.env` questions, pm2, Nginx, HTTPS, smoke test |
 | `scripts/build-single.mjs` | Builds `dist/vanity.html`, a one-file offline version without Fast mode |
 
 Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.js` and `public/index.html` (`openSealed`, `verify`, `selfTest`). Every key shown to a user is re-derived and checked; that is the safety guarantee.
@@ -35,6 +36,8 @@ Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.
 - HTTPS on a real domain. Browsers only allow WebGPU and WebCrypto on secure origins.
 
 ## Deploy steps (Ubuntu VPS)
+
+Quickest: on a fresh Ubuntu 22.04/24.04 VPS whose domain already points at it, run `sudo bash scripts/setup-server.sh` from the project folder. It installs Node, pm2, Nginx and certbot, asks the owner for the wallet, RPC URL, prices, contact, name, country and domain (writing `.env`), binds the app to 127.0.0.1 behind Nginx with API rate limits, gets the HTTPS certificate and runs the smoke test. It is safe to run again. The manual steps below do the same by hand.
 
 1. Check the machine:
    ```bash
@@ -74,6 +77,7 @@ Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.
      }
      location /api/ {
        limit_req zone=vanity_api burst=20 nodelay;
+       limit_req_status 429;
        proxy_pass http://127.0.0.1:8080;
        proxy_set_header Host $host;
        proxy_set_header X-Forwarded-For $remote_addr;
@@ -101,7 +105,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PORT` / `HOST` | `8080` / `0.0.0.0` | Where to listen |
+| `PORT` / `HOST` | `8080` / `0.0.0.0` | Where to listen. Behind Nginx on the same machine use `HOST=127.0.0.1` (the setup script does), so nobody can skip Nginx |
 | `ENGINE` | `auto` | `auto`, `gpu` or `cpu` |
 | `CPU_THREADS` | all cores | CPU fallback threads |
 | `MAX_EXPECTED_SECONDS` | `3600` | Refuse Fast mode words whose average search is longer |

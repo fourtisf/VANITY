@@ -26,6 +26,7 @@ public/fonts/          Self-hosted fonts (SIL Open Font License, see LICENSE.txt
 public/wallets/        Wallet logos for the Connect wallet list
 public/og.png          Link preview image
 scripts/build-single.mjs  Builds dist/vanity.html, a one-file version without Fast mode
+scripts/setup-server.sh   One-command install on an Ubuntu VPS (pm2, Nginx, HTTPS, .env questions)
 scripts/smoke.mjs      End-to-end check of a running server (npm run smoke -- <url>)
 scripts/pay-test.mjs   Fast mode payment check against a fake Solana RPC (npm run test:pay)
 scripts/browser-test.mjs  The payment flow in a real browser with fake wallets (npm run test:browser)
@@ -42,6 +43,8 @@ npm start            # http://localhost:8080
 Without a GPU the server falls back to CPU threads by itself and says so in the log.
 
 ## Deploy on a GPU VPS (recommended)
+
+Shortcut for an Ubuntu 22.04/24.04 VPS: point the domain's A record at the server, clone the repo, and run `sudo bash scripts/setup-server.sh`. It asks for the wallet, RPC URL, prices, contact and domain, then sets up pm2, Nginx and HTTPS and runs the smoke test. The steps below are the same thing by hand.
 
 Speed comes from the GPU. A plain CPU VPS works, but it is about as fast as a good laptop.
 
@@ -70,7 +73,7 @@ Speed comes from the GPU. A plain CPU VPS works, but it is about as fast as a go
    limit_req_zone $binary_remote_addr zone=vanity_api:10m rate=5r/s;
    server {
      server_name getplates.fun www.getplates.fun;
-     location /api/ { limit_req zone=vanity_api burst=20 nodelay; proxy_pass http://127.0.0.1:8080;
+     location /api/ { limit_req zone=vanity_api burst=20 nodelay; limit_req_status 429; proxy_pass http://127.0.0.1:8080;
        proxy_set_header Host $host; proxy_set_header X-Forwarded-For $remote_addr; proxy_set_header X-Forwarded-Proto $scheme; }
      location / { proxy_pass http://127.0.0.1:8080;
        proxy_set_header Host $host; proxy_set_header X-Forwarded-For $remote_addr; proxy_set_header X-Forwarded-Proto $scheme; }
@@ -92,7 +95,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PORT` / `HOST` | `8080` / `0.0.0.0` | Where to listen |
+| `PORT` / `HOST` | `8080` / `0.0.0.0` | Where to listen. Behind Nginx on the same machine use `HOST=127.0.0.1`, so nobody can skip Nginx |
 | `ENGINE` | `auto` | `auto`, `gpu` or `cpu` |
 | `CPU_THREADS` | all cores | Threads for the CPU fallback |
 | `MAX_EXPECTED_SECONDS` | `3600` | Refuse names whose average search on this server is longer |
