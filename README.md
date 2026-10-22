@@ -45,7 +45,7 @@ Without a GPU the server falls back to CPU threads by itself and says so in the 
 
 ## Deploy on a GPU VPS (recommended)
 
-Shortcut for an Ubuntu 22.04/24.04 VPS: point the domain's A record at the server, clone the repo, and run `sudo bash scripts/setup-server.sh`. It asks for the wallet, RPC URL, prices, contact and domain, then sets up pm2, Nginx and HTTPS and runs the smoke test. The steps below are the same thing by hand.
+Shortcut for an Ubuntu 22.04/24.04 VPS: point the domain's A record at the server, then `git clone https://github.com/fourtisf/VANITY.git /srv/plates/app && cd /srv/plates/app && sudo bash scripts/setup-server.sh`. It asks for the wallet, RPC URL, prices, contact and domain, runs the app as its own `plates` user on a free port behind Nginx with HTTPS, and runs the smoke test. It is safe on a server that already hosts other sites, and running it again updates the code. The steps below are the same thing by hand.
 
 Speed comes from the GPU. A plain CPU VPS works, but it is about as fast as a good laptop.
 

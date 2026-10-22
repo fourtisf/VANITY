@@ -38,7 +38,14 @@ Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.
 
 ## Deploy steps (Ubuntu VPS)
 
-Quickest: on a fresh Ubuntu 22.04/24.04 VPS whose domain already points at it, run `sudo bash scripts/setup-server.sh` from the project folder. It installs Node, pm2, Nginx and certbot, asks the owner for the wallet, RPC URL, prices, contact, name, country and domain (writing `.env`), binds the app to 127.0.0.1 behind Nginx with API rate limits, gets the HTTPS certificate and runs the smoke test. It is safe to run again. The manual steps below do the same by hand.
+Quickest, on an Ubuntu 22.04/24.04 VPS whose domain already points at it (the repo is public, no GitHub key needed):
+
+```bash
+git clone https://github.com/fourtisf/VANITY.git /srv/plates/app
+cd /srv/plates/app && bash scripts/setup-server.sh      # as root, or with sudo
+```
+
+It installs what is missing (Node, pm2, Nginx, certbot), runs the app as its own `plates` user on a free port bound to 127.0.0.1, asks the owner for the wallet, RPC URL, prices, contact, name, country and domain (writing `.env`), adds an Nginx site with API rate limits, gets the HTTPS certificate and runs the smoke test. It leaves other projects on a shared server alone. Running it again pulls the latest code and restarts the app. The manual steps below do the same by hand.
 
 1. Check the machine:
    ```bash
