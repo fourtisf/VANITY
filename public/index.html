@@ -199,6 +199,27 @@ h1{margin:18px auto 14px;font:700 clamp(40px,7vw,76px)/.98 var(--display);letter
 .dl:hover{filter:brightness(1.06)}
 .dl:disabled{filter:grayscale(.6);opacity:.7;cursor:default}
 .brand{font:700 20px var(--display);color:var(--text);text-decoration:none;white-space:nowrap;margin-left:-6px}
+.wwrap{position:relative}
+.nav a{white-space:nowrap}
+/* With the wallet button in the header, the trust pill keeps just its lock so the row stays on one line. */
+.top .in:has(.wbtn:not([hidden])) .pill span{display:none}
+.top .in:has(.wbtn:not([hidden])) .pill{padding:10px 12px}
+.wbtn{display:inline-flex;align-items:center;gap:9px;height:44px;padding:0 16px;border:0;border-radius:13px;background:var(--teal);color:var(--teal-ink);font:700 15.5px var(--display);white-space:nowrap;box-shadow:0 10px 26px -12px rgba(59,227,195,.8)}
+.wbtn[hidden]{display:none}
+.wbtn:hover{filter:brightness(1.06)}
+.wbtn.on{background:var(--card-hi);color:var(--text);border:1px solid var(--line2);box-shadow:none;font:600 15px var(--mono)}
+.wbtn img{width:24px;height:24px;border-radius:7px}
+.wmenu{position:absolute;right:0;top:calc(100% + 8px);min-width:200px;padding:6px;border-radius:16px;background:var(--card);border:1px solid var(--line2);box-shadow:0 24px 60px -20px rgba(0,0,0,.9);z-index:30;display:flex;flex-direction:column}
+.wmenu[hidden]{display:none}
+.wmenu button{background:none;border:0;border-radius:11px;padding:11px 14px;text-align:left;color:var(--text);font:600 15px var(--display)}
+.wmenu button:hover{background:var(--card-hi)}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:60;max-width:min(560px,calc(100vw - 32px));padding:13px 18px;border-radius:14px;background:var(--card-hi);border:1px solid var(--line2);color:var(--text);font:600 15px var(--sans);box-shadow:0 24px 60px -20px rgba(0,0,0,.9)}
+.toast[hidden]{display:none}
+.kv .v.fundrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:600 15px/1.5 var(--sans)}
+.fundrow input{width:96px;height:38px;padding:0 10px;border-radius:10px;border:1px solid var(--line2);background:var(--well);color:var(--text);font:600 15px var(--mono)}
+.fundrow [data-fundmsg]{flex-basis:100%;color:var(--muted);font-size:14.5px}
+.fundrow [data-fundmsg]:empty{display:none}
+.fundrow a{color:var(--teal)}
 .paybox p{margin:0}
 .payhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
 .paytime{font:600 14px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
@@ -299,6 +320,8 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
 }
 @media (max-width:640px){
   .pill span{display:none}
+  .top .pill{display:none}
+  .wbtn{height:40px;padding:0 13px;font-size:14.5px}
   .hero{padding-top:36px}
   .stage{padding-top:30px}
   .bot{width:150px;height:102px;margin-bottom:-30px}
@@ -349,6 +372,14 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
       <span id="pill">Keys made on your device</span>
     </span>
+    <div class="wwrap">
+      <button type="button" class="wbtn" id="hdrWallet" hidden></button>
+      <div class="wmenu" id="hdrMenu" hidden>
+        <button type="button" data-m="copy">Copy address</button>
+        <button type="button" data-m="change">Change wallet</button>
+        <button type="button" data-m="disconnect">Disconnect</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -457,6 +488,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <p class="small" id="payMsg"></p>
       <p class="small legal">By paying you agree to the <a href="legal.html#terms" target="_blank">Terms</a> and the <a href="legal.html#refunds" target="_blank">Refund policy</a>.</p>
     </div>
+    <div class="toast" id="toast" role="status" hidden></div>
     <dialog class="wallets" id="walletDlg" aria-labelledby="walletTitle">
       <div class="wh"><h3 id="walletTitle">Connect a wallet</h3><button type="button" class="x" id="walletClose" aria-label="Close">×</button></div>
       <div class="wlist" id="walletList"></div>
@@ -757,6 +789,7 @@ async function serverInit(){
   const pay = state.server.info && state.server.info.pay;
   if (pay) $('faqCost').textContent = `Searching on your own device is free. Fast mode on our cloud GPU costs from ${fmtSol(pay.priceSol)} SOL per search, a little more for longer words, paid from your Solana wallet before the search starts.`;
   if (state.server.status === 'ready' && state.wantFast) setFast(true);
+  renderHeaderWallet(); reconnect();
   refresh();
   if (state.server.status === 'ready') resumeSavedJob();
 }
@@ -822,11 +855,10 @@ const wallets = [];
 function registerWallets(...ws){
   for (const w of ws) if (w && w.features && w.features['standard:connect'] && w.features['solana:signAndSendTransaction'] && !wallets.includes(w)) wallets.push(w);
   if ($('walletDlg').open) renderWallets();
-  if (state.pay){ reconnect(); renderPay(); }
+  reconnect();
+  if (state.pay) renderPay();
   return () => {};
 }
-window.addEventListener('wallet-standard:register-wallet', e => { try { e.detail({ register: registerWallets }); } catch {} });
-try { window.dispatchEvent(new CustomEvent('wallet-standard:app-ready', { detail: { register: registerWallets } })); } catch {}
 
 function b58dec(s){
   let n = 0n;
@@ -835,14 +867,16 @@ function b58dec(s){
   for (const c of s){ if (c !== '1') break; out.unshift(0); }
   return Uint8Array.from(out);
 }
-// Unsigned legacy transaction with one System Program transfer. The job's reference rides along as an extra
-// read-only account (Solana Pay), which is how the server finds the payment on chain.
+// Unsigned legacy transaction with one System Program transfer. A Fast mode payment carries the job's reference as
+// an extra read-only account (Solana Pay), which is how the server finds it on chain; a plain transfer has none.
 function transferTx(payer, to, reference, lamports, blockhash){
-  if ([payer, to, reference, blockhash].some(k => k.length !== 32)) throw new Error('bad key');
+  const keys = reference ? [payer, to, reference] : [payer, to];
+  if ([...keys, blockhash].some(k => k.length !== 32)) throw new Error('bad key');
   const data = new Uint8Array(12), dv = new DataView(data.buffer);
   dv.setUint32(0, 2, true); dv.setBigUint64(4, BigInt(lamports), true);
-  const header = [1, 0, 2], system = new Uint8Array(32), ix = [1, 3, 3, 0, 1, 2, data.length, ...data];
-  return Uint8Array.from([1, ...new Uint8Array(64), ...header, 4, ...payer, ...to, ...reference, ...system, ...blockhash, ...ix]);
+  const header = [1, 0, keys.length - 1], system = new Uint8Array(32);
+  const ix = [1, keys.length, keys.length, ...keys.map((_, i) => i), data.length, ...data];
+  return Uint8Array.from([1, ...new Uint8Array(64), ...header, keys.length + 1, ...keys.flatMap(k => [...k]), ...system, ...blockhash, ...ix]);
 }
 const payMsg = t => { $('payMsg').textContent = t; };
 const sentMsg = 'Payment sent. The search starts as soon as it confirms. If nothing happens within a minute, check your wallet before paying again.';
@@ -851,12 +885,14 @@ const payLeft = () => state.payDeadline - Date.now();
 const usable = chain => wallets.filter(w => !w.chains || w.chains.includes(chain));
 const pickAccount = (accounts, chain) => accounts.find(x => !x.chains || x.chains.includes(chain)) || accounts[0];
 const shortAddr = a => a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a;
+const chainId = () => (state.pay && state.pay.chain) || (state.server.info && state.server.info.chain) || 'solana:mainnet';
+const WALLET_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 7V6a2 2 0 0 1 2-2h10"/><circle cx="16" cy="13.5" r="1.4" fill="currentColor"/></svg>';
+function toast(t){ const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(state.toastT); state.toastT = setTimeout(() => { el.hidden = true; }, 3800); }
 // Fast mode settings ride in the link that reopens this page inside a wallet app, so nothing has to be typed again.
 const fastLink = () => location.origin + location.pathname + '#fast=' + encodeURIComponent(JSON.stringify({ p: cleanVal('pre'), s: cleanVal('suf'), c: state.anyCase, m: state.mode }));
 
 function renderWallets(){
-  const pay = state.pay; if (!pay) return;
-  const found = usable(pay.chain), rows = [];
+  const found = usable(chainId()), rows = [];
   found.forEach((w, i) => rows.push(`<button type="button" class="wrow" data-w="${i}"><img src="${esc(w.icon)}" alt=""><span>${esc(w.name)}</span><em class="ok">Detected</em></button>`));
   for (const k of KNOWN){
     if (found.some(w => w.name.toLowerCase().startsWith(k.name.toLowerCase()))) continue;
@@ -868,7 +904,26 @@ function renderWallets(){
   // The page reopens inside the wallet app as a new visit, so this unpaid search is let go first.
   $('walletList').querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', () => { if (state.running && !paidJob()) stop(); }));
 }
-function openWallets(){ renderWallets(); if (!$('walletDlg').open) $('walletDlg').showModal(); }
+// next runs once a wallet connects (pay, or send SOL); from the header it is just the connection.
+function openWallets(next){ state.afterConnect = typeof next === 'function' ? next : null; renderWallets(); if (!$('walletDlg').open) $('walletDlg').showModal(); }
+
+// The header shows the visitor's own wallet: connecting needs nothing from the site owner.
+function renderHeaderWallet(){
+  const b = $('hdrWallet'), c = state.wallet;
+  b.hidden = state.server.status !== 'ready';
+  b.classList.toggle('on', !!c);
+  b.innerHTML = c ? `<img src="${esc(c.w.icon)}" alt=""><span>${esc(shortAddr(c.account.address))}</span>` : `${WALLET_ICON}<span>Connect wallet</span>`;
+  b.setAttribute('aria-label', c ? `${c.w.name} wallet ${c.account.address}` : 'Connect wallet');
+  if (!c) $('hdrMenu').hidden = true;
+}
+function setWallet(c){ state.wallet = c; renderHeaderWallet(); if (state.pay) renderPay(); }
+async function disconnectWallet(){
+  const c = state.wallet; if (!c) return;
+  setWallet(null);
+  try { localStorage.removeItem('vanity.wallet'); } catch {}
+  try { if (c.w.features['standard:disconnect']) await c.w.features['standard:disconnect'].disconnect(); } catch {}
+  toast('Wallet disconnected');
+}
 
 function renderPay(){
   const pay = state.pay, c = state.wallet;
@@ -893,31 +948,33 @@ function tickPay(){
 
 // Reconnects the wallet used last time without a prompt, when that wallet allows it.
 async function reconnect(){
-  if (state.wallet || !state.pay) return;
+  if (state.wallet || state.reconnecting) return;
   let name = null; try { name = localStorage.getItem('vanity.wallet'); } catch {}
-  const w = name && usable(state.pay.chain).find(x => x.name === name);
+  const chain = chainId(), w = name && usable(chain).find(x => x.name === name);
   if (!w) return;
+  state.reconnecting = true;
   try {
     const { accounts } = await w.features['standard:connect'].connect({ silent: true });
-    const account = accounts && accounts.length && pickAccount(accounts, state.pay.chain);
-    if (account && state.pay && !state.wallet){ state.wallet = { w, account }; renderPay(); }
-  } catch {}
+    const account = accounts && accounts.length && pickAccount(accounts, chain);
+    if (account && !state.wallet) setWallet({ w, account });
+  } catch {} finally { state.reconnecting = false; }
 }
 async function connectWallet(w){
   $('walletDlg').close();
-  const chain = state.pay && state.pay.chain;
-  if (!chain) return;
+  const chain = chainId(), next = state.afterConnect;
+  state.afterConnect = null;
   try {
-    payMsg(`Connecting to ${w.name}…`);
+    if (state.pay) payMsg(`Connecting to ${w.name}…`);
     const { accounts } = await w.features['standard:connect'].connect();
     const account = accounts && accounts.length && pickAccount(accounts, chain);
     if (!account) throw new Error('the wallet shared no account');
-    state.wallet = { w, account };
     try { localStorage.setItem('vanity.wallet', w.name); } catch {}
-    payMsg(''); renderPay();
-    pay();
+    if (state.pay) payMsg('');
+    setWallet({ w, account });
+    if (next) next(); else toast(`Connected to ${w.name}: ${shortAddr(account.address)}`);
   } catch (e) {
-    payMsg(`${w.name} did not connect${e && e.message ? ` (${e.message})` : ''}. Try again or pick another wallet.`);
+    const m = `${w.name} did not connect${e && e.message ? ` (${e.message})` : ''}. Try again or pick another wallet.`;
+    if (state.pay) payMsg(m); else toast(m);
   }
 }
 async function pay(){
@@ -949,6 +1006,10 @@ function refundNote(sig){
   const who = c ? `<a href="${esc(c.href)}">${esc(c.textContent)}</a>` : 'us';
   return ` You paid for this search: contact ${who} with this transaction for a refund: <code>${esc(sig)}</code>`;
 }
+
+// Listen for wallets only now: one that is already installed registers at once, and everything above must exist by then.
+window.addEventListener('wallet-standard:register-wallet', e => { try { e.detail({ register: registerWallets }); } catch {} });
+try { window.dispatchEvent(new CustomEvent('wallet-standard:app-ready', { detail: { register: registerWallets } })); } catch {}
 
 async function runServer(id, a, saved){
   let job = saved;
@@ -1249,6 +1310,8 @@ function renderResult(r){
   card.className = 'res';
   const title = r.mode === 'token' ? 'Your token address is ready' : 'Your wallet is ready';
   const label = r.mode === 'token' ? 'Mint address' : 'Address';
+  // A mint must stay empty until the token is created, so only wallet addresses get the Add SOL row.
+  const canFund = r.mode !== 'token' && state.server.status === 'ready';
   card.innerHTML = `
     <h2>${title}</h2>
     <p class="sub">Found after ${fmtBig(r.tries)} keys in ${fmtElapsed(r.elapsed)} on ${WHERE[r.engine]}</p>
@@ -1259,7 +1322,11 @@ function renderResult(r){
     <div class="kv"><span class="k">Private key</span>
       <div class="v masked" data-secret>${'•'.repeat(32)}</div>
       <div class="btns"><button class="sm" data-act="reveal">Show</button><button class="sm" data-act="copyKey">Copy</button></div>
-    </div>
+    </div>${canFund ? `
+    <div class="kv"><span class="k">Add SOL</span>
+      <div class="v fundrow">Send <input type="number" min="0.001" step="0.001" value="0.01" aria-label="Amount in SOL" data-amt> SOL here from your wallet.<span data-fundmsg></span></div>
+      <div class="btns"><button class="sm" data-act="fund">Send</button></div>
+    </div>` : ''}
     <div class="foot">
       <p>Anyone with this key controls the ${r.mode === 'token' ? 'mint' : 'wallet'}. Save it now; closing the tab erases it.</p>
       <button class="dl" data-act="download">Download keypair</button>
@@ -1273,6 +1340,7 @@ function renderResult(r){
       const v = card.querySelector('[data-secret]'); const shown = !v.classList.contains('masked');
       v.classList.toggle('masked', shown); v.textContent = shown ? '•'.repeat(32) : r.secret58; b.textContent = shown ? 'Show' : 'Hide';
     }
+    if (act === 'fund') fundAddress(r, card, b);
     if (act === 'download'){
       const blob = new Blob([JSON.stringify(Array.from(r.secret))], { type: 'application/json' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = r.address + '.json';
@@ -1282,6 +1350,30 @@ function renderResult(r){
   });
   $('results').prepend(card);
   if (state.found === r) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' });
+}
+// Sends SOL from the connected wallet to a freshly made address so it is ready to use. Only once the key is saved:
+// that key is the only way to move the SOL again.
+async function fundAddress(r, card, btn){
+  const msg = h => { card.querySelector('[data-fundmsg]').innerHTML = h; };
+  if (!r.saved){ msg('Save the private key first (Copy or Download): only that key can move this SOL.'); return; }
+  const sol = parseFloat(card.querySelector('[data-amt]').value);
+  if (!(sol >= 0.001)){ msg('Send at least 0.001 SOL: Solana needs about 0.00089 SOL to open a new address.'); return; }
+  if (!state.wallet){ openWallets(() => fundAddress(r, card, btn)); return; }
+  const c = state.wallet, chain = chainId();
+  btn.disabled = true;
+  try {
+    msg(`Approve the transfer in ${esc(c.w.name)}.`);
+    const res = await fetch('api/blockhash', { cache: 'no-store' });
+    if (!res.ok) throw new Error('the server could not reach Solana');
+    const { blockhash } = await res.json();
+    const tx = transferTx(c.account.publicKey, b58dec(r.address), null, Math.round(sol * 1e9), b58dec(blockhash));
+    const [out] = await c.w.features['solana:signAndSendTransaction'].signAndSendTransaction({ account: c.account, chain, transaction: tx });
+    const sig = b58(out.signature), cluster = chain === 'solana:mainnet' ? '' : `?cluster=${chain.split(':')[1]}`;
+    msg(`Sent ${sol} SOL. <a href="https://solscan.io/tx/${esc(sig)}${cluster}" target="_blank" rel="noopener">View on Solscan</a>`);
+    btn.textContent = 'Sent';
+  } catch (e) {
+    msg(`The transfer didn’t go through${e && e.message ? ` (${esc(e.message)})` : ''}.`);
+  } finally { btn.disabled = false; }
 }
 async function copy(text, btn){
   try { await navigator.clipboard.writeText(text); }
@@ -1317,8 +1409,17 @@ function setMode(mode, keepFields){
 document.querySelectorAll('[data-case]').forEach(b => b.addEventListener('click', () => setCase(b.dataset.case === 'any')));
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
 $('fast').addEventListener('click', () => setFast(!state.fast));
-$('payBtn').addEventListener('click', () => state.wallet ? pay() : openWallets());
-$('payChange').addEventListener('click', openWallets);
+$('payBtn').addEventListener('click', () => state.wallet ? pay() : openWallets(pay));
+$('payChange').addEventListener('click', () => openWallets(null));
+$('hdrWallet').addEventListener('click', e => { e.stopPropagation(); if (state.wallet) $('hdrMenu').hidden = !$('hdrMenu').hidden; else openWallets(null); });
+$('hdrMenu').addEventListener('click', async e => {
+  const m = e.target.closest('[data-m]'); if (!m || !state.wallet) return;
+  $('hdrMenu').hidden = true;
+  if (m.dataset.m === 'copy'){ try { await navigator.clipboard.writeText(state.wallet.account.address); toast('Address copied'); } catch { toast(state.wallet.account.address); } }
+  if (m.dataset.m === 'change') openWallets(null);
+  if (m.dataset.m === 'disconnect') disconnectWallet();
+});
+document.addEventListener('click', e => { if (!e.target.closest('.wwrap')) $('hdrMenu').hidden = true; });
 $('walletClose').addEventListener('click', () => $('walletDlg').close());
 $('walletDlg').addEventListener('click', e => { if (e.target === $('walletDlg')) $('walletDlg').close(); });
 $('go').addEventListener('click', () => {

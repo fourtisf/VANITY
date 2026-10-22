@@ -138,7 +138,11 @@ The server still sees each key for a moment while sealing it. The website says t
 - **Try it on devnet first.** Start with `SOLANA_CLUSTER=devnet`, switch your wallet to devnet, get free SOL from the faucet, and run one search end to end. Then switch to mainnet with a provider URL in `SOLANA_RPC` and pay for one search yourself. `npm run smoke -- <url>` also checks that the server reaches the RPC.
 - **Watch it.** See Monitoring below.
 - One server process uses one GPU. For more GPUs, run one process per GPU and split traffic, or add a coordinator.
-- The API: `GET /api/status`, `POST /api/jobs`, `GET /api/jobs/:id`, `DELETE /api/jobs/:id`, and with payments on `GET /api/blockhash` and `POST /api/jobs/:id/paid`.
+- The API: `GET /api/status`, `POST /api/jobs`, `GET /api/jobs/:id`, `DELETE /api/jobs/:id`, `GET /api/blockhash` (for transfers the page builds), and with payments on `POST /api/jobs/:id/paid`.
+
+## Connect wallet
+
+The header has a Connect wallet button for every visitor, paid Fast mode or not; it needs nothing from the site owner. It lists the wallets installed in the browser (Wallet Standard) with their logos, plus Phantom, Solflare and Backpack to install or to open the page in on a phone. Once connected, the header shows the wallet and its short address, with Copy address, Change wallet and Disconnect. The same connection pays for Fast mode, and on a new wallet address the result card offers Add SOL: a plain transfer from the connected wallet to that address, allowed only after the visitor has saved the private key. Token mint addresses get no Add SOL, since a mint must stay empty until the token is created.
 
 ## How payments work
 

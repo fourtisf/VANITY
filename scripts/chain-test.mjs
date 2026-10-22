@@ -1,7 +1,8 @@
 // Real-chain check of Fast mode payments: the page builds the transfer, a test wallet signs it, and it is sent
 // to a real Solana node. The server must find it through that node's RPC, run the search and deliver the key,
 // and the receiver's balance on chain must grow by the price. Two payments: one the page reports, one it
-// cannot report (found by its reference). Nothing is faked between the page, the node and the server.
+// cannot report (found by its reference). Then "Add SOL" sends SOL from the wallet to the new address, and its
+// balance on chain must show it. Nothing is faked between the page, the node and the server.
 //
 // Needs: npm i --no-save --omit=optional playwright@1.56.1 @solana/web3.js@1.98.4 && npx playwright install chromium
 // Usage: node scripts/chain-test.mjs [rpcUrl] [screenshotDir]
@@ -109,6 +110,17 @@ async function paidSearch(prefix, { blockReport = false } = {}) {
 const a = await paidSearch('A');
 console.log(`payment reported by the page: found on chain, key delivered in ${a.seconds.toFixed(1)}s (${a.address})`);
 await page.screenshot({ path: path.join(shots, 'chain-result.png') });
+// Add SOL: a plain transfer (no reference) from the connected wallet to the address just made.
+await page.click('.res [data-act="copyKey"]');
+await page.fill('.res [data-amt]', '0.05');
+await page.click('.res [data-act="fund"]');
+await page.waitForFunction(() => /Sent 0\.05 SOL/.test(document.querySelector('.res [data-fundmsg]').textContent), null, { timeout: 30000 })
+  .catch(async () => fail('Add SOL: ' + await page.textContent('.res [data-fundmsg]')));
+const fundSig = sent.pop();
+await conn.confirmTransaction({ signature: fundSig, ...(await conn.getLatestBlockhash()) }, 'confirmed');
+const funded = await conn.getBalance(new web3.PublicKey(a.address));
+check(funded === 0.05 * web3.LAMPORTS_PER_SOL, `new address holds ${funded} lamports after Add SOL`);
+console.log(`Add SOL: the new address holds ${funded / 1e9} SOL on chain`);
 const b = await paidSearch('B', { blockReport: true });
 console.log(`payment never reported: found by its reference, key delivered in ${b.seconds.toFixed(1)}s (${b.address})`);
 

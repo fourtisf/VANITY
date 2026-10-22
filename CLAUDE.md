@@ -15,7 +15,7 @@ A website that creates Solana wallet or token addresses starting or ending with 
 |---|---|
 | `server.js` | Node server: serves `public/` and `engine/`, runs the Fast mode job queue (`/api/*`) and payments |
 | `site.js` | Site name, contact and links from the environment, filled into `{{NAME}}` placeholders in the pages |
-| `public/index.html` | The whole website (HTML, CSS, app JS), including the Connect wallet payment |
+| `public/index.html` | The whole website (HTML, CSS, app JS), including Connect wallet (header), Fast mode payment and Add SOL |
 | `public/legal.html` | Terms, privacy and refund policy templates |
 | `engine/vanity.wgsl` | GPU shader: SHA-512, ed25519, base58 checks. Shared by browser and server |
 | `engine/gpu-engine.js` | WebGPU host code. Shared by browser and server |
@@ -144,6 +144,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 - Log says `payment check failed` or `blockhash failed`: the server cannot use `SOLANA_RPC`. The public RPC rate-limits busy sites; use a provider URL.
 - Log says `GPU engine unavailable`: run `vulkaninfo --summary`. No GPU listed means the NVIDIA driver or `libvulkan1` is missing. In Docker, `NVIDIA_DRIVER_CAPABILITIES` must include `graphics`.
 - Fast mode toggle not visible on the site: the page could not reach `/api/status`. Check the Nginx proxy.
+- Connect wallet is in the header for every visitor and needs no `PAY_TO`; it hides only when the page cannot reach the server (`/api/status`), as in the offline one-file build.
 - Connect wallet lists no installed wallet: the visitor has no Solana wallet extension, or it does not support the Wallet Standard. Phantom, Solflare and Backpack are still offered to install, or to open the page in their app on a phone.
 - Link previews show `http://` addresses: set `SITE_URL`, or pass `X-Forwarded-Proto` from Nginx with `TRUST_PROXY=1`.
 - Site works but "Your GPU" says not available: the visitor's browser has no WebGPU. It falls back to CPU automatically.

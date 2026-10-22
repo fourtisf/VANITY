@@ -49,6 +49,7 @@ await new Promise(r => server.stdout.on('data', d => { if (String(d).includes('l
 /* ---- the "wallet": refuses the first payment, then signs and lands the transaction once released ---- */
 const payer = web3.Keypair.generate();
 let calls = 0, sent = null, release;
+const sentAll = [];
 const approved = new Promise(r => { release = r; });
 async function sendTx(txBytes, chain) {
   if (++calls === 1) throw new Error('User rejected the request.');
@@ -60,6 +61,7 @@ async function sendTx(txBytes, chain) {
   const keys = tx.compileMessage().accountKeys.map(k => k.toBase58());
   sent = { chain, from: t.fromPubkey.toBase58(), to: t.toPubkey.toBase58(), lamports: Number(t.lamports), blockhash: tx.recentBlockhash,
     feePayer: tx.feePayer?.toBase58(), extra: ix.keys.slice(2).map(k => ({ signer: k.isSigner, writable: k.isWritable })) };
+  sentAll.push(sent);
   tx.sign(payer);
   if (!tx.verifySignatures()) throw new Error('signature does not verify');
   const sig = VP.b58(tx.signature);
@@ -105,6 +107,20 @@ check(await page.getAttribute('[data-contact]', 'href') === 'mailto:help@vanity.
 check(await page.evaluate(() => document.fonts.check('700 20px Fredoka')), 'self-hosted font not loaded');
 console.log('site details, contact, preview tags and fonts: ok');
 
+/* ---- header: the visitor connects their own wallet; nothing from the site owner is needed ---- */
+await page.waitForSelector('#hdrWallet:not([hidden])', { timeout: 30000 });
+check(/Connect wallet/.test(await page.textContent('#hdrWallet')), 'header Connect wallet button');
+await page.click('#hdrWallet');
+await page.waitForSelector('#walletDlg[open]');
+await page.click('#walletList .wrow:has-text("Late Wallet")');
+await page.waitForFunction(() => document.querySelector('#hdrWallet').classList.contains('on'), null, { timeout: 10000 }).catch(() => fail('header did not show the connected wallet'));
+check((await page.textContent('#hdrWallet')).includes('…'), 'header shows the short address');
+await page.screenshot({ path: path.join(shots, 'header-connected.png'), clip: { x: 0, y: 0, width: 1280, height: 90 } });
+await page.click('#hdrWallet');
+await page.click('#hdrMenu [data-m="disconnect"]');
+await page.waitForFunction(() => !document.querySelector('#hdrWallet').classList.contains('on'));
+console.log('header Connect wallet, connected address, disconnect: ok');
+
 /* ---- start a paid search ---- */
 await page.waitForSelector('#fast:not([hidden])', { timeout: 30000 });
 await page.click('#fast');
@@ -143,12 +159,25 @@ release();
 await page.waitForSelector('.res', { timeout: 60000 }).catch(async () => fail('no result; pay msg: ' + await page.textContent('#payMsg')));
 const address = await page.textContent('.res .kv .v');
 const amount = Math.round(0.01 * 1e9);
+sent = sentAll[0];
 check(sent.chain === 'solana:mainnet', 'chain');
 check(sent.from === payer.publicKey.toBase58() && sent.feePayer === sent.from, 'payer');
 check(sent.to === PAY_TO && sent.lamports === amount && sent.blockhash === BLOCKHASH, 'transfer');
 check(sent.extra.length === 1 && !sent.extra[0].signer && !sent.extra[0].writable, 'reference is one read-only non-signer key');
 check(/^[Aa]/.test(address) && await page.isHidden('#paybox'), 'result');
 console.log(`connect wallet, refused then approved payment, delivery: ok (${address})`);
+
+/* ---- Add SOL: a plain transfer from the connected wallet to the new address, only once the key is saved ---- */
+await page.click('.res [data-act="fund"]');
+await page.waitForFunction(() => /Save the private key first/.test(document.querySelector('.res [data-fundmsg]').textContent), null, { timeout: 5000 }).catch(() => fail('Add SOL ran before the key was saved'));
+await page.click('.res [data-act="copyKey"]');
+await page.fill('.res [data-amt]', '0.05');
+await page.click('.res [data-act="fund"]');
+await page.waitForFunction(() => /Sent 0\.05 SOL/.test(document.querySelector('.res [data-fundmsg]').textContent), null, { timeout: 15000 }).catch(async () => fail('Add SOL: ' + await page.textContent('.res [data-fundmsg]')));
+const fund = sentAll[1];
+check(fund && fund.from === payer.publicKey.toBase58() && fund.to === address.trim() && fund.lamports === 5e7 && fund.extra.length === 0, 'Add SOL transfer: ' + JSON.stringify(fund));
+await page.locator('.res').screenshot({ path: path.join(shots, 'result-add-sol.png') });
+console.log('Add SOL: refused until the key is saved, then a plain transfer to the new address: ok');
 
 /* ---- phone without a wallet: reopen the page inside the wallet app ---- */
 const phone = await browser.newContext({ ...devices['iPhone 13'] });
@@ -175,6 +204,28 @@ await app.goto(inner.replace('https://vanity.example', base), { waitUntil: 'load
 await app.waitForFunction(() => document.querySelector('#fast').getAttribute('aria-checked') === 'true', null, { timeout: 30000 }).catch(() => fail('Fast mode not turned on from the wallet link'));
 check(await app.inputValue('#pre') === 'Ab' && await app.inputValue('#suf') === 'x' && !app.url().includes('#fast'), 'fields not restored from the wallet link');
 console.log('phone: wallet app links and reopened page: ok');
+
+/* ---- free Fast mode (no PAY_TO): the header wallet and Add SOL are still there ---- */
+const freePort = port + 1;
+const freeServer = spawn(process.execPath, [path.join(root, 'server.js')], {
+  env: { ...process.env, ENV_FILE: path.join(tmpdir(), 'no-such.env'), ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(freePort), PAY_TO: '',
+    SOLANA_RPC: `http://127.0.0.1:${rpc.address().port}` },
+  stdio: ['ignore', 'pipe', 'inherit'],
+});
+await new Promise(r => freeServer.stdout.on('data', d => { if (String(d).includes('listening')) r(); }));
+const fp = await browser.newPage();
+fp.on('pageerror', e => fail('free page error: ' + e.message));
+await fp.goto(`http://127.0.0.1:${freePort}/`, { waitUntil: 'load' });
+await fp.waitForSelector('#hdrWallet:not([hidden])', { timeout: 30000 });
+check(!!(await fp.evaluate(() => fetch('api/blockhash').then(r => r.json()))).blockhash, 'no blockhash without PAY_TO');
+await fp.waitForSelector('#fast:not([hidden])', { timeout: 30000 });
+await fp.click('#fast'); await fp.fill('#pre', 'A');
+await fp.waitForSelector('#go:not([disabled])', { timeout: 30000 });
+await fp.click('#go');
+await fp.waitForSelector('.res', { timeout: 60000 }).catch(() => fail('free Fast mode gave no result'));
+check(await fp.isHidden('#paybox') && await fp.isVisible('.res [data-act="fund"]'), 'free mode: no pay box, Add SOL offered');
+freeServer.kill();
+console.log('free Fast mode: header wallet, no payment, Add SOL: ok');
 
 /* ---- legal page ---- */
 const legal = await browser.newPage();
