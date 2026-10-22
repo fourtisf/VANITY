@@ -12,10 +12,11 @@ if (status.engine !== 'gpu') console.warn('note: server is running on CPU. On a 
 
 const page = await fetch(base + '/').then(r => r.text());
 if (!page.includes('id="pre"')) fail('website did not load');
-for (const f of ['engine/pattern.js', 'engine/gpu-engine.js', 'engine/vanity.wgsl']) {
+for (const f of ['engine/pattern.js', 'engine/gpu-engine.js', 'engine/vanity.wgsl', 'legal.html', 'robots.txt', 'og.png', 'fonts/nunito.woff2', 'wallets/phantom.svg']) {
   const r = await fetch(base + '/' + f); if (!r.ok) fail(f + ' not served (' + r.status + ')');
 }
-console.log('website and engine files: ok');
+if (page.includes('{{')) fail('page placeholders were not filled in');
+console.log('website, legal page, fonts, logos and engine files: ok');
 
 const kp = await S.generateKey({ name: 'RSA-OAEP', modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, false, ['encrypt', 'decrypt']);
 const spki = Buffer.from(await S.exportKey('spki', kp.publicKey)).toString('base64');

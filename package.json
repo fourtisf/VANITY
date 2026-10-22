@@ -8,7 +8,8 @@
     "start": "node server.js",
     "build:single": "node scripts/build-single.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "test:pay": "node scripts/pay-test.mjs"
+    "test:pay": "node scripts/pay-test.mjs",
+    "test:browser": "node scripts/browser-test.mjs"
   },
   "engines": {
     "node": ">=20"

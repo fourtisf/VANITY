@@ -10,6 +10,7 @@ import os from 'node:os';
 import { Worker } from 'node:worker_threads';
 import { randomBytes, webcrypto } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { siteConfig, renderPage, hasContact } from './site.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 await import('./engine/pattern.js');
@@ -26,8 +27,11 @@ const CFG = {
   maxExpectedSec: +env('MAX_EXPECTED_SECONDS', 3600),       // refuse names whose average search is longer
   maxRunSec: +env('MAX_RUN_SECONDS', 6 * 3600),            // hard cap per job (each job also stops at 5x its average)
   maxQueue: +env('MAX_QUEUE', 25),
+  maxUnpaid: +env('MAX_UNPAID', 50),                   // jobs waiting for payment at once (not counted in MAX_QUEUE)
+  payWindowSec: +env('PAY_WINDOW_SECONDS', 900),      // how long a job waits for its payment
   maxJobsPerIp: +env('MAX_JOBS_PER_IP', 1),
   resultTtlSec: +env('RESULT_TTL_SECONDS', 3600),
+  paidResultTtlSec: +env('PAID_RESULT_TTL_SECONDS', 86400),
   abandonSec: +env('ABANDON_SECONDS', 600),
   trustProxy: env('TRUST_PROXY', '0') === '1',
   payTo: env('PAY_TO', ''),                            // Solana address that receives Fast mode payments; empty = free
@@ -37,6 +41,7 @@ const CFG = {
 };
 CFG.rpc = env('SOLANA_RPC', `https://api.${CFG.cluster === 'mainnet' ? 'mainnet-beta' : CFG.cluster}.solana.com`);
 CFG.paidFile = env('PAID_JOBS_FILE', path.join(ROOT, 'paid-jobs.json'));
+const SITE = siteConfig();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
@@ -172,30 +177,36 @@ function latestBlockhash() {
   return blockhash.value;
 }
 
-async function findPayment(job) {
-  const sigs = await rpc('getSignaturesForAddress', [job.pay.reference, { limit: 20, commitment: 'confirmed' }]);
-  for (const s of sigs) {
-    if (s.err || usedSigs.has(s.signature)) continue;
-    const tx = await rpc('getTransaction', [s.signature, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 }]);
-    if (!tx || !tx.meta || tx.meta.err) continue;
-    const { writable = [], readonly = [] } = tx.meta.loadedAddresses || {};
-    const keys = [...tx.transaction.message.accountKeys, ...writable, ...readonly];
-    const i = keys.indexOf(CFG.payTo);
-    if (i < 0 || tx.meta.postBalances[i] - tx.meta.preBalances[i] < job.pay.lamports) continue;
-    if (job.status !== 'unpaid' || usedSigs.has(s.signature)) return;
-    usedSigs.set(s.signature, Date.now());
-    job.paid = { signature: s.signature, payer: keys[0] };
-    job.status = 'queued'; queue.push(job);
-    log(`job ${job.id.slice(0, 8)} paid ${sol(job.pay.lamports)} SOL by ${keys[0]} (${s.signature})`);
-    savePaid(); setImmediate(runNext);
-    return;
-  }
+// Accepts a confirmed, successful transaction that lists the job's reference and raised PAY_TO by the price.
+async function acceptPayment(job, signature) {
+  if (usedSigs.has(signature)) return false;
+  const tx = await rpc('getTransaction', [signature, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 }]);
+  if (!tx || !tx.meta || tx.meta.err) return false;
+  const { writable = [], readonly = [] } = tx.meta.loadedAddresses || {};
+  const keys = [...tx.transaction.message.accountKeys, ...writable, ...readonly];
+  const i = keys.indexOf(CFG.payTo);
+  if (!keys.includes(job.pay.reference) || i < 0 || tx.meta.postBalances[i] - tx.meta.preBalances[i] < job.pay.lamports) return false;
+  if (job.status !== 'unpaid' || usedSigs.has(signature)) return false;
+  usedSigs.set(signature, Date.now());
+  job.paid = { signature, payer: keys[0] };
+  job.status = 'queued'; queue.push(job);
+  log(`job ${job.id.slice(0, 8)} paid ${sol(job.pay.lamports)} SOL by ${keys[0]} (${signature})`);
+  savePaid(); setImmediate(runNext);
+  return true;
 }
 
-// Looks for the payment at most every 3 seconds per job; callers share a check that is already running.
+// The signature the page got from the wallet is checked first; the reference lookup also finds a payment
+// whose page closed before it could report one.
+async function findPayment(job) {
+  if (job.pay.hint && await acceptPayment(job, job.pay.hint)) return;
+  const sigs = await rpc('getSignaturesForAddress', [job.pay.reference, { limit: 20, commitment: 'confirmed' }]);
+  for (const s of sigs) if (!s.err && s.signature !== job.pay.hint && await acceptPayment(job, s.signature)) return;
+}
+
+// Looks for the payment every 2 seconds once the page reports one, otherwise every 10; callers share a running check.
 function checkPayment(job) {
   const p = job.pay;
-  if (job.status === 'unpaid' && !p.check && Date.now() - p.checkedAt >= 3000) {
+  if (job.status === 'unpaid' && !p.check && Date.now() - p.checkedAt >= (p.hint ? 2000 : 10_000)) {
     p.check = findPayment(job)
       .catch(e => { log(`job ${job.id.slice(0, 8)} payment check failed: ${e.message}`); return false; })
       .finally(() => { p.check = null; p.checkedAt = Date.now(); });
@@ -219,7 +230,7 @@ async function loadPaid() {
   for (const p of list) {
     try {
       const job = { id: p.id, a: VP.analyze(p.prefix, p.suffix, p.anyCase), rsa: await importRecipient(p.recipientKey), spki: p.recipientKey, ip: p.ip,
-        status: 'queued', tries: 0, rate: 0, created: p.created, seenAt: Date.now(), pay: { ...p.pay, checkedAt: 0, check: null }, paid: p.paid };
+        status: 'queued', tries: 0, rate: 0, created: p.created, seenAt: Date.now(), pay: { ...p.pay, expiresAt: 0, checkedAt: 0, check: null }, paid: p.paid };
       jobs.set(job.id, job); queue.push(job); usedSigs.set(p.paid.signature, Date.now());
       log(`job ${job.id.slice(0, 8)} resumed after a restart (paid by ${p.paid.payer})`);
     } catch (e) { log(`could not resume paid job ${p.id}: ${e.message}`); }
@@ -227,10 +238,8 @@ async function loadPaid() {
 }
 
 function payInfo(j) {
-  const amount = sol(j.pay.lamports);
-  const q = new URLSearchParams({ amount, reference: j.pay.reference, label: 'Vanity address', message: `Fast mode search ${j.id.slice(0, 8)}` });
-  return { to: CFG.payTo, lamports: j.pay.lamports, amount, reference: j.pay.reference, chain: 'solana:' + CFG.cluster,
-    url: `solana:${CFG.payTo}?${q.toString().replace(/\+/g, '%20')}` };
+  return { to: CFG.payTo, lamports: j.pay.lamports, amount: sol(j.pay.lamports), reference: j.pay.reference, chain: 'solana:' + CFG.cluster,
+    expiresIn: Math.max(0, Math.round((j.pay.expiresAt - Date.now()) / 1000)) };
 }
 
 /* ---------------- jobs ---------------- */
@@ -259,7 +268,8 @@ async function runNext() {
   if (current || !queue.length) return;
   const job = queue.shift();
   current = job; job.status = 'running'; job.startedAt = Date.now();
-  const limitMs = Math.min(CFG.maxRunSec, 5 / (job.a.p * engine.rate) + 120) * 1000;
+  // Free jobs stop at 5x their average; paid ones keep going to MAX_RUN_SECONDS so a slow run still delivers.
+  const limitMs = (job.paid ? CFG.maxRunSec : Math.min(CFG.maxRunSec, 5 / (job.a.p * engine.rate) + 120)) * 1000;
   try {
     const hit = await engine.grind(job,
       () => job.status === 'running' && Date.now() - job.startedAt < limitMs,
@@ -275,7 +285,7 @@ async function runNext() {
       if (job.paid) log(`job ${job.id.slice(0, 8)} hit the time limit; it was paid by ${job.paid.payer} (${job.paid.signature})`);
     }
   } catch (e) {
-    log('job failed', e); job.status = 'failed'; job.error = 'engine';
+    log(`job ${job.id.slice(0, 8)} failed${job.paid ? `; it was paid by ${job.paid.payer} (${job.paid.signature})` : ''}`, e); job.status = 'failed'; job.error = 'engine';
   } finally {
     job.finishedAt = Date.now(); job.rsa = null; current = null;
     if (job.paid) savePaid();
@@ -294,18 +304,21 @@ setInterval(() => {
   const t = Date.now();
   for (const j of jobs.values()) {
     const idle = t - j.seenAt > CFG.abandonSec * 1000;
-    if (idle && j.status === 'unpaid') checkPayment(j).then(ok => { if (ok !== false && j.status === 'unpaid') cancel(j, 'abandoned'); });
+    // A transfer sent in the last seconds of the window gets 90 more to confirm.
+    const late = j.status === 'unpaid' && t > j.pay.expiresAt + 90_000;
+    if (j.status === 'unpaid' && (idle || late)) checkPayment(j).then(ok => { if (ok !== false && j.status === 'unpaid') cancel(j, idle ? 'abandoned' : 'pay-expired'); });
     else if (idle && !j.paid && (j.status === 'queued' || j.status === 'running')) cancel(j, 'abandoned');
-    if (j.finishedAt && t - j.finishedAt > CFG.resultTtlSec * 1000) { jobs.delete(j.id); if (j.paid && !j.delivered) savePaid(); }
+    const ttl = (j.paid ? CFG.paidResultTtlSec : CFG.resultTtlSec) * 1000;
+    if (j.finishedAt && t - j.finishedAt > ttl) { jobs.delete(j.id); if (j.paid && !j.delivered) savePaid(); }
   }
   for (const [sig, at] of usedSigs) if (t - at > 7 * 86400 * 1000) usedSigs.delete(sig);
 }, 30_000).unref();
 
 /* ---------------- http ---------------- */
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.wgsl': 'text/plain; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.wgsl': 'text/plain; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2' };
 const CSP = [
   "default-src 'self'", "script-src 'self' 'unsafe-inline'", "worker-src 'self' blob:",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline'", "font-src 'self'",
   "connect-src 'self'", "img-src 'self' data:", "frame-ancestors 'none'", "base-uri 'none'", "form-action 'none'",
 ].join('; ');
 const BASE_HEADERS = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': CSP };
@@ -314,6 +327,10 @@ function send(res, code, body, headers = {}) {
   const isObj = typeof body === 'object' && !(body instanceof Buffer);
   res.writeHead(code, { ...BASE_HEADERS, 'Content-Type': isObj ? 'application/json' : 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', ...headers });
   res.end(isObj ? JSON.stringify(body) : body);
+}
+function origin(req) {
+  const proto = CFG.trustProxy && req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  return `${proto}://${String(req.headers.host || 'localhost').replace(/[^A-Za-z0-9.:\[\]-]/g, '')}`;
 }
 function clientIp(req) {
   if (CFG.trustProxy) { const f = req.headers['x-forwarded-for']; if (f) return String(f).split(',')[0].trim(); }
@@ -340,11 +357,14 @@ async function createJob(req, res) {
   const ip = clientIp(req);
   const open = [...jobs.values()].filter(j => j.status === 'queued' || j.status === 'running' || j.status === 'unpaid');
   if (open.filter(j => j.ip === ip).length >= CFG.maxJobsPerIp) return send(res, 429, { error: 'one-at-a-time' });
-  if (queue.length + open.filter(j => j.status === 'unpaid').length >= CFG.maxQueue) return send(res, 503, { error: 'queue-full' });
+  if (queue.length >= CFG.maxQueue || (CFG.payTo && open.filter(j => j.status === 'unpaid').length >= CFG.maxUnpaid)) return send(res, 503, { error: 'queue-full' });
   let rsa;
   try { rsa = await importRecipient(body.recipientKey); } catch { return send(res, 400, { error: 'bad-key' }); }
   const job = { id: randomBytes(16).toString('hex'), a, rsa, spki: String(body.recipientKey), ip, status: 'queued', tries: 0, rate: 0, created: Date.now(), seenAt: Date.now() };
-  if (CFG.payTo) { job.status = 'unpaid'; job.pay = { lamports: priceLamports(avgSeconds), reference: VP.b58(randomBytes(32)), checkedAt: Date.now(), check: null }; }
+  if (CFG.payTo) {
+    job.status = 'unpaid';
+    job.pay = { lamports: priceLamports(avgSeconds), reference: VP.b58(randomBytes(32)), expiresAt: Date.now() + CFG.payWindowSec * 1000, checkedAt: Date.now(), check: null };
+  }
   jobs.set(job.id, job);
   if (job.status === 'queued') { queue.push(job); setImmediate(runNext); }
   log(`job ${job.id.slice(0, 8)} ${job.pay ? `waiting for ${sol(job.pay.lamports)} SOL` : 'queued'}: "${a.preRaw}…${a.sufRaw}" anyCase=${a.anyCase} avg≈${Math.round(avgSeconds)}s`);
@@ -361,8 +381,9 @@ async function serveStatic(req, res, urlPath) {
   const ext = path.extname(file);
   if (!TYPES[ext] || (isEngine && !['.js', '.wgsl'].includes(ext))) return send(res, 404, 'Not found');
   try {
-    const data = await readFile(file);
-    res.writeHead(200, { ...BASE_HEADERS, 'Content-Type': TYPES[ext], 'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=300' });
+    let data = await readFile(file);
+    if (ext === '.html') data = renderPage(data.toString('utf8'), SITE, origin(req));
+    res.writeHead(200, { ...BASE_HEADERS, 'Content-Type': TYPES[ext], 'Cache-Control': ext === '.html' ? 'no-cache' : ext === '.woff2' ? 'public, max-age=31536000, immutable' : 'public, max-age=300' });
     res.end(req.method === 'HEAD' ? undefined : data);
   } catch { send(res, 404, 'Not found'); }
 }
@@ -371,6 +392,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://x');
     const p = url.pathname;
+    if (CFG.trustProxy && req.headers['x-forwarded-proto'] === 'https') res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     if (p === '/api/status' && req.method === 'GET') {
       const pay = CFG.payTo ? { to: CFG.payTo, priceSol: CFG.priceSol, priceSolPerHour: CFG.priceSolPerHour, chain: 'solana:' + CFG.cluster } : null;
       return send(res, 200, { engine: engine.kind, device: engine.device, rate: Math.round(engine.rate), queue: queue.length + (current ? 1 : 0), maxExpectedSeconds: CFG.maxExpectedSec, maxTotal: VP.MAX_TOTAL, pay });
@@ -380,10 +402,20 @@ const server = http.createServer(async (req, res) => {
       catch (e) { log('blockhash failed:', e.message); return send(res, 502, { error: 'rpc' }); }
     }
     if (p === '/api/jobs' && req.method === 'POST') return createJob(req, res);
-    const m = p.match(/^\/api\/jobs\/([0-9a-f]{32})$/);
+    const m = p.match(/^\/api\/jobs\/([0-9a-f]{32})(\/paid)?$/);
     if (m) {
       const job = jobs.get(m[1]);
       if (!job) return send(res, 404, { error: 'gone' });
+      if (m[2]) {
+        // The page reports the signature its wallet returned, so the server checks that transaction right away.
+        if (req.method !== 'POST' || !job.pay) return send(res, 405, { error: 'method' });
+        let body;
+        try { body = await readJson(req, 1024); } catch { return send(res, 400, { error: 'bad-request' }); }
+        const sig = String(body.signature || '');
+        if (!/^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(sig)) return send(res, 400, { error: 'bad-signature' });
+        if (job.status === 'unpaid') { job.pay.hint = sig; job.seenAt = Date.now(); checkPayment(job); }
+        return send(res, 200, view(job));
+      }
       if (req.method === 'GET') {
         job.seenAt = Date.now();
         if (job.status === 'unpaid') checkPayment(job);
@@ -404,5 +436,6 @@ const server = http.createServer(async (req, res) => {
 await initEngine();
 if (CFG.payTo) { await loadPaid(); setImmediate(runNext); }
 log(CFG.payTo ? `Fast mode payments: ${CFG.priceSol} SOL + ${CFG.priceSolPerHour} SOL/hr to ${CFG.payTo} on ${CFG.cluster} via ${new URL(CFG.rpc).host}` : 'Fast mode is free (set PAY_TO to charge for it)');
+if (CFG.payTo && !hasContact(SITE)) log('warning: set CONTACT_EMAIL or CONTACT_TELEGRAM so paying customers can reach you for refunds');
 server.listen(CFG.port, CFG.host, () => log(`Vanity server listening on http://${CFG.host}:${CFG.port}`));
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { log('shutting down'); server.close(); process.exit(0); });

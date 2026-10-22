@@ -14,14 +14,21 @@ Every engine is verified: GPU hits are re-derived with WebCrypto before they are
 
 ```
 server.js              Node server: website + /api + job queue
+site.js                Site name, contact and links from environment variables, filled into the pages
 engine/vanity.wgsl     GPU shader (SHA-512, ed25519, base58 checks), shared by browser and server
 engine/gpu-engine.js   WebGPU host code, shared by browser and server
 engine/pattern.js      Pattern parsing and odds, shared by browser and server
 engine/cpu-worker.mjs  Server CPU fallback (worker_threads)
 public/index.html      The website
+public/legal.html      Terms, privacy and refund policy (templates: have them reviewed)
+public/fonts/          Self-hosted fonts (SIL Open Font License, see LICENSE.txt there)
+public/wallets/        Wallet logos for the Connect wallet list
+public/og.png          Link preview image
 scripts/build-single.mjs  Builds dist/vanity.html, a one-file version without Fast mode
 scripts/smoke.mjs      End-to-end check of a running server (npm run smoke -- <url>)
 scripts/pay-test.mjs   Fast mode payment check against a fake Solana RPC (npm run test:pay)
+scripts/browser-test.mjs  The payment flow in a real browser with fake wallets (npm run test:browser)
+.github/workflows/test.yml  Runs all of the above on every push
 ```
 
 ## Run locally
@@ -56,15 +63,19 @@ Speed comes from the GPU. A plain CPU VPS works, but it is about as fast as a go
    pm2 save && pm2 startup
    ```
    The log should say `engine: gpu (nvidia), ~N keys/sec`. If it says the GPU is unavailable, check `vulkaninfo --summary`.
-5. Put Nginx with HTTPS in front (WebGPU and WebCrypto require HTTPS on a real domain):
+5. Put Nginx with HTTPS in front (WebGPU and WebCrypto require HTTPS on a real domain). The `limit_req` lines keep one visitor from flooding the API:
    ```nginx
+   limit_req_zone $binary_remote_addr zone=vanity_api:10m rate=5r/s;
    server {
      server_name vanity.example.com;
-     location / { proxy_pass http://127.0.0.1:8080; proxy_set_header X-Forwarded-For $remote_addr; }
+     location /api/ { limit_req zone=vanity_api burst=20 nodelay; proxy_pass http://127.0.0.1:8080;
+       proxy_set_header Host $host; proxy_set_header X-Forwarded-For $remote_addr; proxy_set_header X-Forwarded-Proto $scheme; }
+     location / { proxy_pass http://127.0.0.1:8080;
+       proxy_set_header Host $host; proxy_set_header X-Forwarded-For $remote_addr; proxy_set_header X-Forwarded-Proto $scheme; }
      listen 443 ssl; # managed by certbot
    }
    ```
-   `sudo certbot --nginx -d vanity.example.com`
+   `sudo certbot --nginx -d vanity.example.com`. With `TRUST_PROXY=1` the server then sends HSTS on HTTPS requests.
 
 ### Docker (RunPod and similar)
 
@@ -81,10 +92,13 @@ docker run --gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility -p 
 | `ENGINE` | `auto` | `auto`, `gpu` or `cpu` |
 | `CPU_THREADS` | all cores | Threads for the CPU fallback |
 | `MAX_EXPECTED_SECONDS` | `3600` | Refuse names whose average search on this server is longer |
-| `MAX_RUN_SECONDS` | `21600` | Hard cap per job (each job also stops at 5× its average) |
-| `MAX_QUEUE` | `25` | Jobs waiting at once |
+| `MAX_RUN_SECONDS` | `21600` | Hard cap per job. Free jobs also stop at 5× their average; paid ones run to this cap |
+| `MAX_QUEUE` | `25` | Jobs waiting to run at once |
+| `MAX_UNPAID` | `50` | Jobs waiting for their payment at once (separate from `MAX_QUEUE`) |
+| `PAY_WINDOW_SECONDS` | `900` | How long a job waits for its payment |
 | `MAX_JOBS_PER_IP` | `1` | Active jobs per visitor |
 | `RESULT_TTL_SECONDS` | `3600` | How long a finished, sealed result is kept in memory |
+| `PAID_RESULT_TTL_SECONDS` | `86400` | The same for paid jobs |
 | `ABANDON_SECONDS` | `600` | Cancel jobs whose page stopped checking in |
 | `TRUST_PROXY` | `0` | Set `1` behind Nginx so per-IP limits use `X-Forwarded-For` |
 | `PAY_TO` | empty | Solana address that receives Fast mode payments. Empty keeps Fast mode free |
@@ -93,6 +107,12 @@ docker run --gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility -p 
 | `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
 | `SOLANA_RPC` | public RPC of the cluster | The public RPC is rate-limited; use a provider URL (Helius, QuickNode, Triton) in production |
 | `PAID_JOBS_FILE` | `./paid-jobs.json` | Where paid jobs wait across restarts (no keys or results, see below) |
+| `SITE_NAME` | `Solana Vanity` | Brand shown in the header, title and link previews |
+| `SITE_URL` | from the request | Public address such as `https://vanity.example.com`, used in link previews |
+| `CONTACT_EMAIL` / `CONTACT_TELEGRAM` | empty | Shown in the footer, the legal page and refund messages. Set one before taking payments |
+| `OPERATOR_NAME` | `SITE_NAME` | Person or company that runs the site, named in the legal page |
+| `JURISDICTION` | empty | Country whose laws govern the terms, for example `Indonesia` |
+| `SOURCE_URL` | empty | Link to the public source code, shown in the footer when set |
 
 ## How the server keeps keys private
 
@@ -106,15 +126,24 @@ The server still sees each key for a moment while sealing it. The website says t
 ## Before a public launch
 
 - **Turn on payments.** Without `PAY_TO` anyone can queue a free server job, limited per IP and by `MAX_EXPECTED_SECONDS`. Set `PAY_TO` to your wallet address and Fast mode charges `PRICE_SOL + PRICE_SOL_PER_HOUR × average hours` per job.
-- **Try it on devnet first.** Start with `SOLANA_CLUSTER=devnet`, switch your wallet to devnet, get free SOL from the faucet, and run one search end to end. `npm run smoke -- <url>` also checks that the server reaches the RPC.
+- **Say who you are.** Set `SITE_NAME`, `SITE_URL`, `CONTACT_EMAIL` or `CONTACT_TELEGRAM`, `OPERATOR_NAME` and `JURISDICTION`. Have `public/legal.html` checked by someone who knows the law where you operate; it is a starting point, not legal advice.
+- **Try it on devnet first.** Start with `SOLANA_CLUSTER=devnet`, switch your wallet to devnet, get free SOL from the faucet, and run one search end to end. Then switch to mainnet with a provider URL in `SOLANA_RPC` and pay for one search yourself. `npm run smoke -- <url>` also checks that the server reaches the RPC.
+- **Watch it.** See Monitoring below.
 - One server process uses one GPU. For more GPUs, run one process per GPU and split traffic, or add a coordinator.
-- The API: `GET /api/status`, `POST /api/jobs`, `GET /api/jobs/:id`, `DELETE /api/jobs/:id`, and `GET /api/blockhash` when payments are on.
+- The API: `GET /api/status`, `POST /api/jobs`, `GET /api/jobs/:id`, `DELETE /api/jobs/:id`, and with payments on `GET /api/blockhash` and `POST /api/jobs/:id/paid`.
 
 ## How payments work
 
-1. `POST /api/jobs` returns the job as `unpaid` with a price and a fresh Solana Pay reference key.
-2. The page pays with a browser wallet (Phantom, Solflare, Backpack, found through the Wallet Standard) or a `solana:` link that opens a wallet app. The transfer lists the reference as an extra read-only account.
-3. While the page checks in, the server looks the reference up on chain (`getSignaturesForAddress`, then `getTransaction`) at most every 3 seconds. It accepts a successful transaction that raised `PAY_TO`'s balance by at least the price, and each transaction pays for one job only.
-4. The job then joins the queue. Paid jobs keep running if the page closes or loses its connection, and survive a server restart through `PAID_JOBS_FILE`. The page picks the result up when it comes back, within `RESULT_TTL_SECONDS` of the finish.
+1. `POST /api/jobs` returns the job as `unpaid` with a price, a fresh Solana Pay reference key and `PAY_WINDOW_SECONDS` to pay.
+2. The visitor presses Connect wallet and picks a wallet. Installed wallets are found through the Wallet Standard and listed with their own logos, whichever wallet it is. Phantom, Solflare and Backpack are also suggested when missing: install links on a computer, and on a phone links that reopen the page inside the wallet app with the search filled in.
+3. The page builds one System Program transfer to `PAY_TO` that lists the reference as an extra read-only account, and the wallet signs and sends it. The page reports the signature (`POST /api/jobs/:id/paid`) and the server checks it every 2 seconds. It also looks the reference up on chain every 10 seconds, which finds a payment whose page closed before reporting it.
+4. The server accepts a confirmed, successful transaction that lists the reference and raised `PAY_TO`'s balance by at least the price. Each transaction pays for one job only.
+5. The job then joins the queue. Paid jobs run until they find the address (up to `MAX_RUN_SECONDS`), keep running if the page closes or loses its connection, and survive a server restart through `PAID_JOBS_FILE`. The page picks the result up when it comes back, within `PAID_RESULT_TTL_SECONDS` of the finish.
 
-There are no automatic refunds. A paid job that hits its time limit is logged with the payer and the transaction signature, so you can refund it by hand. Unpaid jobs are dropped after `ABANDON_SECONDS` without a check-in, after one last look for the payment.
+There are no automatic refunds. A paid job that fails is logged with the payer and the transaction signature, and the page shows the visitor that transaction and your contact, so you can refund by hand (`grep "hit the time limit\|job failed" ~/.pm2/logs/vanity-out.log`). Unpaid jobs are dropped when their window closes or after `ABANDON_SECONDS` without a check-in, after one last look for the payment.
+
+## Monitoring
+
+- Uptime: point a monitor such as UptimeRobot or Better Stack at `https://your-domain/api/status`; it answers JSON with the engine and queue length.
+- Logs: `pm2 install pm2-logrotate` keeps them from filling the disk. Lines worth an alert: `GPU device lost` (the process restarts itself), `payment check failed` or `blockhash failed` (the RPC is down or rate-limiting), `hit the time limit` and `job failed` (refunds).
+- Tests: `npm run smoke -- <url>` against the live site after each deploy. GitHub Actions runs the smoke test, the payment test, the browser test and the one-file build on every push.

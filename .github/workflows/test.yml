@@ -1,0 +1,38 @@
+name: test
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Smoke test (CPU engine, free Fast mode)
+        run: |
+          ENGINE=cpu PORT=8080 HOST=127.0.0.1 node server.js > server.log 2>&1 &
+          for i in $(seq 1 60); do grep -q listening server.log && break; sleep 0.5; done
+          npm run smoke -- http://127.0.0.1:8080
+      - name: Payment test (fake Solana RPC)
+        run: npm run test:pay
+      - name: One-file build
+        run: npm run build:single
+      - name: Browser test (Chromium, fake wallets)
+        run: |
+          npm i --no-save --omit=optional playwright@1.56.1 @solana/web3.js@1.98.4
+          npx playwright install --with-deps chromium
+          npm run test:browser -- screenshots
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots
+          if-no-files-found: ignore
+      - name: Server log
+        if: failure()
+        run: cat server.log || true

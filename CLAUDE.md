@@ -13,14 +13,17 @@ A website that creates Solana wallet or token addresses starting or ending with 
 
 | Path | Role |
 |---|---|
-| `server.js` | Node server: serves `public/` and `engine/`, runs the Fast mode job queue (`/api/*`) |
-| `public/index.html` | The whole website (HTML, CSS, app JS) |
+| `server.js` | Node server: serves `public/` and `engine/`, runs the Fast mode job queue (`/api/*`) and payments |
+| `site.js` | Site name, contact and links from the environment, filled into `{{NAME}}` placeholders in the pages |
+| `public/index.html` | The whole website (HTML, CSS, app JS), including the Connect wallet payment |
+| `public/legal.html` | Terms, privacy and refund policy templates |
 | `engine/vanity.wgsl` | GPU shader: SHA-512, ed25519, base58 checks. Shared by browser and server |
 | `engine/gpu-engine.js` | WebGPU host code. Shared by browser and server |
 | `engine/pattern.js` | Pattern parsing and odds. Shared by browser and server |
 | `engine/cpu-worker.mjs` | Server CPU fallback |
 | `scripts/smoke.mjs` | End-to-end check of a running server (`npm run smoke -- <url>`) |
 | `scripts/pay-test.mjs` | Fast mode payment check against a fake Solana RPC (`npm run test:pay`) |
+| `scripts/browser-test.mjs` | Payment flow in Chromium with fake wallets (`npm run test:browser`, needs Playwright, see the file) |
 | `scripts/build-single.mjs` | Builds `dist/vanity.html`, a one-file offline version without Fast mode |
 
 Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.js` and `public/index.html` (`openSealed`, `verify`, `selfTest`). Every key shown to a user is re-derived and checked; that is the safety guarantee.
@@ -47,7 +50,11 @@ Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.
    ```bash
    npm install
    sudo npm i -g pm2
-   PORT=8080 TRUST_PROXY=1 MAX_EXPECTED_SECONDS=3600 pm2 start server.js --name vanity
+   PORT=8080 TRUST_PROXY=1 MAX_EXPECTED_SECONDS=3600 \
+   SITE_NAME="..." SITE_URL=https://vanity.example.com CONTACT_EMAIL=... OPERATOR_NAME="..." JURISDICTION=... \
+   PAY_TO=<owner's wallet> SOLANA_RPC=<provider URL> \
+   pm2 start server.js --name vanity
+   pm2 install pm2-logrotate
    pm2 save && pm2 startup
    pm2 logs vanity --lines 20   # expect: "engine: gpu (nvidia), ~N keys/sec" on a GPU box
    ```
@@ -58,12 +65,21 @@ Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.
    ```
 5. Nginx + HTTPS (replace the domain):
    ```nginx
+   limit_req_zone $binary_remote_addr zone=vanity_api:10m rate=5r/s;
    server {
      server_name vanity.example.com;
      location / {
        proxy_pass http://127.0.0.1:8080;
        proxy_set_header Host $host;
        proxy_set_header X-Forwarded-For $remote_addr;
+       proxy_set_header X-Forwarded-Proto $scheme;
+     }
+     location /api/ {
+       limit_req zone=vanity_api burst=20 nodelay;
+       proxy_pass http://127.0.0.1:8080;
+       proxy_set_header Host $host;
+       proxy_set_header X-Forwarded-For $remote_addr;
+       proxy_set_header X-Forwarded-Proto $scheme;
      }
    }
    ```
@@ -89,10 +105,13 @@ With payments on, keep paid jobs across container rebuilds with a volume: add `-
 | `ENGINE` | `auto` | `auto`, `gpu` or `cpu` |
 | `CPU_THREADS` | all cores | CPU fallback threads |
 | `MAX_EXPECTED_SECONDS` | `3600` | Refuse Fast mode words whose average search is longer |
-| `MAX_RUN_SECONDS` | `21600` | Hard cap per job (each job also stops at 5x its average) |
-| `MAX_QUEUE` | `25` | Jobs waiting at once |
+| `MAX_RUN_SECONDS` | `21600` | Hard cap per job. Free jobs also stop at 5x their average; paid ones run to this cap |
+| `MAX_QUEUE` | `25` | Jobs waiting to run at once |
+| `MAX_UNPAID` | `50` | Jobs waiting for their payment at once (separate from `MAX_QUEUE`) |
+| `PAY_WINDOW_SECONDS` | `900` | How long a job waits for its payment |
 | `MAX_JOBS_PER_IP` | `1` | Active Fast mode jobs per visitor |
 | `RESULT_TTL_SECONDS` | `3600` | How long a sealed result stays in memory |
+| `PAID_RESULT_TTL_SECONDS` | `86400` | The same for paid jobs |
 | `ABANDON_SECONDS` | `600` | Cancel jobs whose page stopped checking in |
 | `TRUST_PROXY` | `0` | Set `1` behind Nginx so per-IP limits use `X-Forwarded-For` |
 | `PAY_TO` | empty | Solana address that receives Fast mode payments. Empty keeps Fast mode free |
@@ -101,17 +120,27 @@ With payments on, keep paid jobs across container rebuilds with a volume: add `-
 | `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
 | `SOLANA_RPC` | public RPC of the cluster | The public RPC is rate-limited; use a provider URL (Helius, QuickNode, Triton) in production |
 | `PAID_JOBS_FILE` | `./paid-jobs.json` | Where paid jobs wait across restarts (no keys or results, see below) |
+| `SITE_NAME` | `Solana Vanity` | Brand in the header, title and link previews |
+| `SITE_URL` | from the request | Public address, used in link previews |
+| `CONTACT_EMAIL` / `CONTACT_TELEGRAM` | empty | Footer, legal page and refund messages. The server warns at startup if payments are on without one |
+| `OPERATOR_NAME` | `SITE_NAME` | Who runs the site, named in the legal page |
+| `JURISDICTION` | empty | Country whose laws govern the terms |
+| `SOURCE_URL` | empty | Public source code link in the footer |
 
 ## Troubleshooting
 
 - Log says `payment check failed` or `blockhash failed`: the server cannot use `SOLANA_RPC`. The public RPC rate-limits busy sites; use a provider URL.
 - Log says `GPU engine unavailable`: run `vulkaninfo --summary`. No GPU listed means the NVIDIA driver or `libvulkan1` is missing. In Docker, `NVIDIA_DRIVER_CAPABILITIES` must include `graphics`.
 - Fast mode toggle not visible on the site: the page could not reach `/api/status`. Check the Nginx proxy.
+- Connect wallet lists no installed wallet: the visitor has no Solana wallet extension, or it does not support the Wallet Standard. Phantom, Solflare and Backpack are still offered to install, or to open the page in their app on a phone.
+- Link previews show `http://` addresses: set `SITE_URL`, or pass `X-Forwarded-Proto` from Nginx with `TRUST_PROXY=1`.
 - Site works but "Your GPU" says not available: the visitor's browser has no WebGPU. It falls back to CPU automatically.
 
 ## Before a public launch
 
-- Fast mode is free until `PAY_TO` is set. With it, every job waits as `unpaid` until a Solana Pay transfer of the price to `PAY_TO` confirms on chain (see "How payments work" in README.md). Ask the owner for the wallet address and prices; never make one up.
+- Fast mode is free until `PAY_TO` is set. With it, every job waits as `unpaid` until a Connect wallet payment of the price to `PAY_TO` confirms on chain (see "How payments work" in README.md). Ask the owner for the wallet address, prices, brand, contact, operator name and country; never make one up.
+- `public/legal.html` is a template. The owner must have it reviewed before launch.
 - Test payments on devnet first: `SOLANA_CLUSTER=devnet`, a devnet wallet with faucet SOL, one real search. Then switch to mainnet with a paid RPC in `SOLANA_RPC`.
-- No automatic refunds. Paid jobs that hit the time limit are logged with payer and signature; grep the log for `hit the time limit`.
+- No automatic refunds. Paid jobs that fail are logged with payer and signature; grep the log for `hit the time limit` and `job failed`. The visitor sees the transaction and the contact.
+- Monitoring: an uptime check on `/api/status`, `pm2-logrotate`, and alerts on `GPU device lost`, `payment check failed`, `blockhash failed`.
 - One server process uses one GPU.

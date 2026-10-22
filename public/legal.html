@@ -1,0 +1,111 @@
+<!doctype html>
+<!-- Template terms, privacy and refund policy. The owner should have them reviewed for the place they operate from. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0B0C15">
+<title>Terms, privacy and refunds | {{SITE_NAME}}</title>
+<meta name="description" content="Terms of service, privacy policy and refund policy for {{SITE_NAME}}.">
+<link rel="canonical" href="{{ORIGIN}}/legal.html">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='6' width='26' height='21' rx='8' fill='%235B45C9'/%3E%3Crect x='7' y='11' width='18' height='11' rx='5' fill='%230B0C15'/%3E%3Crect x='10' y='14' width='4' height='5' rx='2' fill='%233BE3C3'/%3E%3Crect x='18' y='14' width='4' height='5' rx='2' fill='%233BE3C3'/%3E%3C/svg%3E">
+<style>
+@font-face{font-family:"Fredoka";font-weight:300 700;font-display:swap;src:url(fonts/fredoka.woff2) format("woff2")}
+@font-face{font-family:"Nunito";font-weight:200 1000;font-display:swap;src:url(fonts/nunito.woff2) format("woff2")}
+:root{
+  --bg:#0B0C15; --card:#151429; --line:#25234A; --line2:#352F66;
+  --text:#F3F2FF; --muted:#A8A4CC; --dim:#6E6A99; --teal:#3BE3C3;
+  --display:"Fredoka","Nunito",ui-rounded,system-ui,sans-serif;
+  --sans:"Nunito",ui-rounded,system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{color-scheme:dark;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:600 16.5px/1.65 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:var(--teal)}
+.top{position:sticky;top:0;z-index:2;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);background:rgba(11,12,21,.7);border-bottom:1px solid rgba(53,47,102,.5)}
+.top .in{max-width:860px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:14px}
+.brand{font:700 20px var(--display);color:var(--text);text-decoration:none}
+.top nav{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap}
+.top nav a{color:var(--muted);text-decoration:none;font:600 15px var(--display);padding:8px 11px;border-radius:10px}
+.top nav a:hover{color:var(--text);background:rgba(143,114,255,.1)}
+main{max-width:860px;margin:0 auto;padding:30px 20px 80px}
+h1{font:700 clamp(30px,5vw,42px)/1.15 var(--display);margin:18px 0 6px}
+.upd{color:var(--dim);margin:0 0 26px}
+section{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:26px 28px;margin-top:22px;scroll-margin-top:84px}
+h2{font:700 26px var(--display);margin:0 0 6px}
+h3{font:700 18px var(--display);margin:22px 0 4px}
+p,li{color:#D8D5F2}
+ul{padding-left:22px}
+.back{display:inline-block;margin-top:30px;color:var(--muted)}
+@media (max-width:640px){ section{padding:20px 18px;border-radius:20px} .top nav a{padding:6px 7px;font-size:14px} }
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="brand" href="./">{{SITE_NAME}}</a>
+  <nav><a href="#terms">Terms</a><a href="#privacy">Privacy</a><a href="#refunds">Refunds</a></nav>
+</div></header>
+<main>
+  <h1>Terms, privacy and refunds</h1>
+  <p class="upd">Last updated 22 October 2026. {{SITE_NAME}} is run by {{OPERATOR}}. Contact: {{CONTACT}}.</p>
+
+  <section id="terms">
+    <h2>Terms of service</h2>
+    <h3>What the service does</h3>
+    <p>{{SITE_NAME}} makes Solana keypairs whose address starts or ends with characters you choose. On your device, the search runs in your own browser. In Fast mode, it runs on our server and the result is sealed so that only your browser can open it.</p>
+    <h3>Your key is your responsibility</h3>
+    <ul>
+      <li>Whoever holds the private key controls the wallet or token. Save it before you close the page. We keep no copy and cannot recover a lost key.</li>
+      <li>In Fast mode our server creates the key and holds it for a moment before sealing it to your browser and deleting it. For wallets that will hold significant funds, use the on-device search instead.</li>
+      <li>Every key is checked against its address before it is shown, but you should still test a new wallet with a small amount first.</li>
+    </ul>
+    <h3>Payments</h3>
+    <p>Fast mode is paid in SOL from your own wallet before the search starts. The price appears on the page and again in your wallet before you approve it. Payments on the Solana blockchain cannot be reversed by us or by you; the refund policy below says when we send SOL back.</p>
+    <h3>Acceptable use</h3>
+    <p>Do not use the service for fraud, scams, impersonation or anything unlawful. That includes making addresses that imitate someone else's address to trick people into sending funds to it. We may refuse or stop any search.</p>
+    <h3>No warranty, limited liability</h3>
+    <p>The service is provided as is, without warranties of any kind. As far as the law allows, we are not liable for lost keys, lost funds or indirect losses, and our total liability for a search is limited to what you paid for it.</p>
+    <h3>Other</h3>
+    <p>{{SITE_NAME}} is not affiliated with the Solana Foundation or with any wallet. We may update these terms; the date at the top shows the latest version. These terms are governed by the laws of {{JURISDICTION}}.</p>
+  </section>
+
+  <section id="privacy">
+    <h2>Privacy policy</h2>
+    <h3>On your device</h3>
+    <p>On-device searches never leave your browser: the word you search for and the keys it makes stay on your computer or phone. The page stores a running Fast mode search (its id and the key that opens its result) in your browser, so a reload can pick the result up, and deletes it when the search ends. It also remembers which wallet you paid with last. There are no cookies, analytics, ads, or third-party scripts and fonts.</p>
+    <h3>What our server receives in Fast mode</h3>
+    <ul>
+      <li>The characters you search for and a public encryption key made by your browser.</li>
+      <li>Your IP address, used to limit how many searches one visitor runs at a time.</li>
+      <li>Your payment, which is public on the Solana blockchain: the paying wallet address, the amount and the transaction id.</li>
+    </ul>
+    <p>Our server logs record the time, search id, the characters searched for, the paying wallet and the transaction id. We keep them for support, refunds and accounting. Until a paid result reaches your browser, the server also saves the search request (never the key or the result) so that a restart does not lose it.</p>
+    <h3>Others involved</h3>
+    <p>To confirm payments, our server asks a Solana RPC provider about the transaction. Your wallet app is a separate service with its own privacy policy.</p>
+    <h3>Questions</h3>
+    <p>Contact {{CONTACT}}.</p>
+  </section>
+
+  <section id="refunds">
+    <h2>Refund policy</h2>
+    <h3>You get your SOL back when</h3>
+    <ul>
+      <li>a paid Fast mode search ends without a result, for example because it hit the time limit or the server failed;</li>
+      <li>we lose a paid search, or it never starts;</li>
+      <li>you paid twice for the same search.</li>
+    </ul>
+    <h3>Not refunded</h3>
+    <ul>
+      <li>A search that delivered a matching address.</li>
+      <li>A paid search you stopped yourself. The page asks you to confirm before it stops one.</li>
+      <li>A key you did not save before closing the page.</li>
+    </ul>
+    <h3>How to ask</h3>
+    <p>Contact {{CONTACT}} within 30 days with the payment's transaction id. The page shows it when a paid search fails, and your wallet's history has it too. We send the same amount of SOL back to the wallet that paid, normally within 7 days.</p>
+  </section>
+
+  <a class="back" href="./">← Back to {{SITE_NAME}}</a>
+</main>
+</body>
+</html>
