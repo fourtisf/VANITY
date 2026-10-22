@@ -143,6 +143,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 ## Troubleshooting
 
 - Log says `payment check failed` or `blockhash failed`: the server cannot use `SOLANA_RPC`. The public RPC rate-limits busy sites; use a provider URL.
+- Log says `no GPU driver (Vulkan) on this machine, using CPU threads`: normal on a server without a GPU. With `ENGINE=auto` the server only tries the GPU when a Vulkan driver is installed, so Dawn's `vkCreateInstance: Found no drivers` warnings no longer fill the error log.
 - Log says `GPU engine unavailable`: run `vulkaninfo --summary`. No GPU listed means the NVIDIA driver or `libvulkan1` is missing. In Docker, `NVIDIA_DRIVER_CAPABILITIES` must include `graphics`.
 - Fast mode toggle not visible on the site: the page could not reach `/api/status`. Check the Nginx proxy.
 - Connect wallet is in the header for every visitor and needs no `PAY_TO`; it hides only when the page cannot reach the server (`/api/status`), as in the offline one-file build.

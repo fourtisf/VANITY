@@ -4,7 +4,7 @@
 // kept only in memory, and removed after RESULT_TTL_SECONDS.
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { Worker } from 'node:worker_threads';
@@ -119,9 +119,20 @@ async function makeCpuEngine() {
   return eng;
 }
 
+// On Linux the GPU engine runs on Vulkan. With no Vulkan driver installed (a server without a GPU) there is
+// nothing to try, and trying only fills the error log with Dawn's "Found no drivers" warnings.
+function hasVulkanDriver() {
+  if (['VK_ICD_FILENAMES', 'VK_DRIVER_FILES', 'VK_ADD_DRIVER_FILES'].some(k => env(k, ''))) return true;
+  const split = (v, d) => (process.env[v] || d).split(':').filter(Boolean);
+  const dirs = [...split('XDG_CONFIG_DIRS', '/etc/xdg'), '/etc', ...split('XDG_DATA_DIRS', '/usr/local/share:/usr/share'),
+    path.join(os.homedir(), '.local/share'), '/usr/share'];
+  return dirs.some(d => { try { return readdirSync(path.join(d, 'vulkan/icd.d')).some(f => f.endsWith('.json')); } catch { return false; } });
+}
+
 let engine = null;
 async function initEngine() {
-  if (CFG.engine !== 'cpu') {
+  if (CFG.engine === 'auto' && process.platform === 'linux' && !hasVulkanDriver()) log('no GPU driver (Vulkan) on this machine, using CPU threads');
+  else if (CFG.engine !== 'cpu') {
     try { engine = await makeGpuEngine(); }
     catch (e) {
       if (CFG.engine === 'gpu') throw e;
