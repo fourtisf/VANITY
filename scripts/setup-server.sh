@@ -9,7 +9,9 @@
 # as its own user, takes a free port, and Node, Nginx and certbot are only installed when missing.
 # DRY_RUN=1 prints the system commands instead of running them (used to test the script).
 set -euo pipefail
-
+# Everything sits in one { } block that bash reads in full before running, so the `git pull` in step 2 can
+# rewrite this file safely.
+{
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # The app runs as its own user: the one who called sudo, or "plates" when logged in as root. It cannot touch
 # other projects on the server, and they cannot read its .env.
@@ -59,7 +61,11 @@ else
   warn "No NVIDIA GPU found. Fast mode will run on CPU threads (slower, but it works)."
 fi
 command -v pm2 >/dev/null || run npm install -g pm2
-if ! id "$APP_USER" >/dev/null 2>&1; then run useradd --system --create-home --home-dir "/srv/$APP_USER" --shell /bin/bash "$APP_USER"; fi
+if ! id "$APP_USER" >/dev/null 2>&1; then run useradd --system --home-dir "/srv/$APP_USER" --shell /bin/bash "$APP_USER"; fi
+# pm2 and npm keep their files in the user's home, which `git clone` may have created as root.
+home=$(getent passwd "$APP_USER" | cut -d: -f6 || true); home=${home:-/srv/$APP_USER}
+run mkdir -p "$home"
+run chown "$APP_USER": "$home"
 run chown -R "$APP_USER": "$APP_DIR"
 
 say "2/7 Latest code and dependencies"
@@ -70,34 +76,48 @@ say "3/7 Settings (.env)"
 if [ -f "$ENV_FILE" ]; then
   echo "Keeping the existing $ENV_FILE. To change it: nano $ENV_FILE, then run this script again."
 else
+  # Answers go into a draft that becomes .env only once all of them are in, so stopping halfway leaves nothing.
+  final_env=$ENV_FILE; ENV_FILE="$final_env.draft"
   cp "$APP_DIR/.env.example" "$ENV_FILE"
+  trap 'rm -f "$ENV_FILE"' EXIT
   # Another project may already listen on 8080; take the first free port from there.
   p=8080; while ! port_free "$p"; do p=$((p + 1)); done
   [ "$p" = 8080 ] || warn "port 8080 is taken by another app on this server, so Plates will use port $p"
   set_env PORT "$p"
+  [ -t 0 ] || [ -n "${DRY_RUN:-}" ] || die "run this script in a terminal: it asks a few questions"
   echo "Answer a few questions. Press Enter to accept the value in [brackets]."
   while :; do
-    cluster=$(ask "Network: type mainnet for real SOL, or devnet to test with free SOL first")
-    [ "$cluster" = mainnet ] || [ "$cluster" = devnet ] && break
+    cluster=$(ask "Network: mainnet for real SOL, devnet for free test SOL" mainnet)
+    case "$cluster" in mainnet|mainet|main|m) cluster=mainnet; break;; devnet|dev|d) cluster=devnet; break;; esac
     warn "type mainnet or devnet"
   done
+  echo
+  echo "Fast mode is the paid option: a customer pays SOL before their search runs on this server."
+  echo "Give the PUBLIC address of the wallet that should receive that money (Phantom: click your account name to copy it)."
+  echo "Never paste a private key or seed phrase here. Press Enter to keep Fast mode free and take no payments."
   while :; do
-    pay_to=$(ask "Your Solana wallet address that receives the payments")
+    pay_to=$(ask "Wallet address that receives the payments" "")
+    [ -z "$pay_to" ] && break
     is_address "$pay_to" && break
     warn "that is not a Solana address (44 characters like 7xKq...). Copy it from Phantom or Solflare."
   done
-  rpc=$(ask "RPC URL with your key from Helius or QuickNode (Enter = Solana's public RPC, rate-limited)" "")
-  [ "$cluster" = mainnet ] && [ -z "$rpc" ] && warn "public mainnet RPC: fine to start, but get a free Helius key before you get busy"
-  price=$(ask "Price per Fast mode search in SOL" "0.01")
-  per_hour=$(ask "Extra SOL per hour of average search time" "0.1")
+  rpc="" price=0.01 per_hour=0.1
+  if [ -n "$pay_to" ]; then
+    rpc=$(ask "RPC URL with your key from Helius or QuickNode (Enter = Solana's public RPC, rate-limited)" "")
+    [ "$cluster" = mainnet ] && [ -z "$rpc" ] && warn "public mainnet RPC: fine to start, but get a free Helius key before you get busy"
+    price=$(ask "Price per Fast mode search in SOL" "0.01")
+    per_hour=$(ask "Extra SOL per hour of average search time" "0.1")
+  else
+    warn "no wallet given: Fast mode stays free. To charge later, put your address in PAY_TO in $final_env and run this script again."
+  fi
   while :; do
-    email=$(ask "Contact email for customers and refunds (Enter to skip)" "")
+    email=$(ask "Contact email for customers (Enter to skip)" "")
     telegram=$(ask "Contact Telegram username without @ (Enter to skip)" "")
-    [ -n "$email$telegram" ] && break
-    warn "give at least one: paying customers need a way to reach you"
+    [ -n "$email$telegram" ] || [ -z "$pay_to" ] && break
+    warn "give at least one: paying customers need a way to reach you for refunds"
   done
   operator=$(ask "Your name or company, shown on the legal page" "Plates")
-  country=$(ask "Country whose laws govern the terms, for example Indonesia")
+  country=$(ask "Country whose laws govern the terms" "Indonesia")
   domain=$(ask "Domain" "getplates.fun")
   set_env SOLANA_CLUSTER "$cluster"
   set_env PAY_TO "$pay_to"
@@ -109,6 +129,8 @@ else
   set_env OPERATOR_NAME "$operator"
   set_env JURISDICTION "$country"
   set_env SITE_URL "https://$domain"
+  mv "$ENV_FILE" "$final_env"; ENV_FILE=$final_env
+  trap - EXIT
 fi
 # Only Nginx may reach the app: on 0.0.0.0 anyone could skip HTTPS and fake X-Forwarded-For past the per-visitor limits.
 set_env HOST 127.0.0.1
@@ -122,7 +144,6 @@ domain=$(get_env SITE_URL | sed -E 's#^https?://##; s#/.*$##')
 say "4/7 Start the app (pm2)"
 as_user "pm2 describe vanity >/dev/null 2>&1 && pm2 restart vanity --update-env || pm2 start server.js --name vanity"
 as_user "pm2 save"
-home=$(getent passwd "$APP_USER" | cut -d: -f6 || true); home=${home:-/srv/$APP_USER}
 run env PATH="$PATH" pm2 startup systemd -u "$APP_USER" --hp "$home" >/dev/null
 as_user "pm2 module:list 2>/dev/null | grep -q pm2-logrotate || pm2 install pm2-logrotate"
 if [ -z "${DRY_RUN:-}" ]; then
@@ -193,10 +214,15 @@ fi
 cluster=$(get_env SOLANA_CLUSTER)
 say "Done"
 if [ "$https" = 1 ]; then echo "Your site: https://$domain"; else echo "The app runs; HTTPS waits for DNS (step 6)."; fi
-echo "Network: ${cluster:-mainnet}. Payments go to $(get_env PAY_TO)."
+pay_to=$(get_env PAY_TO)
+if [ -n "$pay_to" ]; then echo "Network: ${cluster:-mainnet}. Fast mode payments go to $pay_to."; else echo "Fast mode is free (no PAY_TO in .env)."; fi
 echo "Logs: sudo -u $APP_USER -H pm2 logs vanity    After editing .env or to update the code: sudo bash scripts/setup-server.sh"
-if [ "$cluster" = devnet ]; then
+if [ -z "$pay_to" ]; then
+  echo "To start charging for Fast mode: put your wallet address in PAY_TO in $ENV_FILE, then run this script again."
+elif [ "$cluster" = devnet ]; then
   echo "To go live: switch your wallet to devnet, pay for one search, check it works, then set SOLANA_CLUSTER=mainnet in .env and run: pm2 restart vanity"
 else
   echo "Before telling anyone: pay for one short Fast mode search with your own wallet and check the SOL arrives and the address is delivered."
 fi
+exit 0
+}
