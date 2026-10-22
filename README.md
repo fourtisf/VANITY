@@ -1,6 +1,6 @@
-# Solana Vanity
+# Plates
 
-Solana vanity address generator (wallet or token mint) with three engines:
+[getplates.fun](https://getplates.fun): Solana vanity address generator (wallet or token mint) with three engines. The mascot is Plato, a license plate with a face.
 
 | Engine | Where it runs | Who sees the private key | Best for |
 |---|---|---|---|
@@ -15,6 +15,7 @@ Every engine is verified: GPU hits are re-derived with WebCrypto before they are
 ```
 server.js              Node server: website + /api + job queue
 site.js                Site name, contact and links from environment variables, filled into the pages
+brand/                 Plato mascot (plato.svg) and the X profile picture and header banner
 engine/vanity.wgsl     GPU shader (SHA-512, ed25519, base58 checks), shared by browser and server
 engine/gpu-engine.js   WebGPU host code, shared by browser and server
 engine/pattern.js      Pattern parsing and odds, shared by browser and server
@@ -68,7 +69,7 @@ Speed comes from the GPU. A plain CPU VPS works, but it is about as fast as a go
    ```nginx
    limit_req_zone $binary_remote_addr zone=vanity_api:10m rate=5r/s;
    server {
-     server_name vanity.example.com;
+     server_name getplates.fun www.getplates.fun;
      location /api/ { limit_req zone=vanity_api burst=20 nodelay; proxy_pass http://127.0.0.1:8080;
        proxy_set_header Host $host; proxy_set_header X-Forwarded-For $remote_addr; proxy_set_header X-Forwarded-Proto $scheme; }
      location / { proxy_pass http://127.0.0.1:8080;
@@ -76,7 +77,7 @@ Speed comes from the GPU. A plain CPU VPS works, but it is about as fast as a go
      listen 443 ssl; # managed by certbot
    }
    ```
-   `sudo certbot --nginx -d vanity.example.com`. With `TRUST_PROXY=1` the server then sends HSTS on HTTPS requests.
+   `sudo certbot --nginx -d getplates.fun -d www.getplates.fun`. With `TRUST_PROXY=1` the server then sends HSTS on HTTPS requests.
 
 ### Docker (RunPod and similar)
 
@@ -110,8 +111,8 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
 | `SOLANA_RPC` | public RPC of the cluster | The public RPC is rate-limited; use a provider URL (Helius, QuickNode, Triton) in production |
 | `PAID_JOBS_FILE` | `./paid-jobs.json` | Where paid jobs wait across restarts (no keys or results, see below) |
-| `SITE_NAME` | `Solana Vanity` | Brand shown in the header, title and link previews |
-| `SITE_URL` | from the request | Public address such as `https://vanity.example.com`, used in link previews |
+| `SITE_NAME` | `Plates` | Brand shown in the header, title and link previews |
+| `SITE_URL` | from the request | Public address (`https://getplates.fun`), used in link previews |
 | `CONTACT_EMAIL` / `CONTACT_TELEGRAM` | empty | Shown in the footer, the legal page and refund messages. Set one before taking payments |
 | `OPERATOR_NAME` | `SITE_NAME` | Person or company that runs the site, named in the legal page |
 | `JURISDICTION` | empty | Country whose laws govern the terms, for example `Indonesia` |

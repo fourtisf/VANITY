@@ -4,7 +4,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 
 export function siteConfig(env = process.env) {
   const get = (k, d = '') => (env[k] === undefined || env[k] === '' ? d : String(env[k]).trim());
-  const name = get('SITE_NAME', 'Solana Vanity');
+  const name = get('SITE_NAME', 'Plates');
   return {
     name,
     url: get('SITE_URL').replace(/\/+$/, ''),

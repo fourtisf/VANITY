@@ -1,4 +1,4 @@
-# Solana Vanity: deploy guide for Claude Code
+# Plates (getplates.fun): deploy guide for Claude Code
 
 This repo is finished and tested. The job is to deploy it, not to rebuild it. Do not rewrite the engine or the page design.
 
@@ -65,7 +65,7 @@ Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.
    ```nginx
    limit_req_zone $binary_remote_addr zone=vanity_api:10m rate=5r/s;
    server {
-     server_name vanity.example.com;
+     server_name getplates.fun www.getplates.fun;
      location / {
        proxy_pass http://127.0.0.1:8080;
        proxy_set_header Host $host;
@@ -82,8 +82,8 @@ Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.
    }
    ```
    ```bash
-   sudo certbot --nginx -d vanity.example.com
-   npm run smoke -- https://vanity.example.com
+   sudo certbot --nginx -d getplates.fun -d www.getplates.fun
+   npm run smoke -- https://getplates.fun
    ```
 
 ### Docker instead of PM2 (RunPod, Vast.ai and similar)
@@ -120,7 +120,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
 | `SOLANA_RPC` | public RPC of the cluster | The public RPC is rate-limited; use a provider URL (Helius, QuickNode, Triton) in production |
 | `PAID_JOBS_FILE` | `./paid-jobs.json` | Where paid jobs wait across restarts (no keys or results, see below) |
-| `SITE_NAME` | `Solana Vanity` | Brand in the header, title and link previews |
+| `SITE_NAME` | `Plates` | Brand in the header, title and link previews |
 | `SITE_URL` | from the request | Public address, used in link previews |
 | `CONTACT_EMAIL` / `CONTACT_TELEGRAM` | empty | Footer, legal page and refund messages. The server warns at startup if payments are on without one |
 | `OPERATOR_NAME` | `SITE_NAME` | Who runs the site, named in the legal page |
