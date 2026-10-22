@@ -2,7 +2,8 @@
 # Puts Plates live on an Ubuntu 22.04/24.04 server: system packages, the app under pm2, Nginx, HTTPS with
 # Let's Encrypt, then the smoke test. Run it from the project folder:
 #
-#   sudo bash scripts/setup-server.sh
+#   sudo bash scripts/setup-server.sh          (asks a few questions)
+#   sudo bash scripts/setup-server.sh --yes    (no questions: mainnet, Fast mode free, the defaults below)
 #
 # Running it again updates the site: it pulls the latest code, keeps .env, the Nginx site and the certificate,
 # restarts the app and re-runs the checks. It is careful on a server shared with other projects: the app runs
@@ -12,6 +13,7 @@ set -euo pipefail
 # Everything sits in one { } block that bash reads in full before running, so the `git pull` in step 2 can
 # rewrite this file safely.
 {
+AUTO=0; case "${1:-}" in -y|--yes) AUTO=1;; esac
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # The app runs as its own user: the one who called sudo, or "plates" when logged in as root. It cannot touch
 # other projects on the server, and they cannot read its .env.
@@ -23,7 +25,7 @@ say()  { printf '\n\033[1;36m== %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m! %s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31mError: %s\033[0m\n' "$*" >&2; exit 1; }
 run()  { if [ -n "${DRY_RUN:-}" ]; then echo "+ $*"; else "$@"; fi; }
-ask()  { local a; read -r -p "$1${2:+ [$2]}: " a || true; printf '%s' "${a:-${2:-}}"; }
+ask()  { local a; if [ "$AUTO" = 1 ]; then echo "$1: ${2:-}" >&2; printf '%s' "${2:-}"; return; fi; read -r -p "$1${2:+ [$2]}: " a || true; printf '%s' "${a:-${2:-}}"; }
 as_user() { run sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && $*"; }
 port_free() { ! ss -ltnH "( sport = :$1 )" 2>/dev/null | grep -q .; }
 install_node() { if [ -n "${DRY_RUN:-}" ]; then echo "+ install Node 22 from NodeSource"; else curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs; fi; }
@@ -84,7 +86,7 @@ else
   p=8080; while ! port_free "$p"; do p=$((p + 1)); done
   [ "$p" = 8080 ] || warn "port 8080 is taken by another app on this server, so Plates will use port $p"
   set_env PORT "$p"
-  [ -t 0 ] || [ -n "${DRY_RUN:-}" ] || die "run this script in a terminal: it asks a few questions"
+  [ -t 0 ] || [ -n "${DRY_RUN:-}" ] || [ "$AUTO" = 1 ] || die "run this script in a terminal, or add --yes to take the defaults"
   echo "Answer a few questions. Press Enter to accept the value in [brackets]."
   while :; do
     cluster=$(ask "Network: mainnet for real SOL, devnet for free test SOL" mainnet)
