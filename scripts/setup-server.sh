@@ -199,9 +199,10 @@ if [ -f "/etc/letsencrypt/live/$domain/fullchain.pem" ]; then
 elif [ ${#names[@]} -eq 0 ]; then
   warn "No DNS record points here yet. At your domain registrar add an A record: @ -> ${ip:-the IP of this server} (and www -> the same), wait a few minutes, then run this script again."
 else
+  # Let's Encrypt mails renewal problems to the contact email when there is one; it never needs an answer here.
   le_email=$(get_env CONTACT_EMAIL)
-  [ -n "$le_email" ] || le_email=$(ask "Email for Let's Encrypt certificate notices")
-  run certbot --nginx "${names[@]}" --non-interactive --agree-tos -m "$le_email" --redirect && https=1
+  if [ -n "$le_email" ]; then le=(-m "$le_email"); else le=(--register-unsafely-without-email); fi
+  run certbot --nginx "${names[@]}" --non-interactive --agree-tos "${le[@]}" --redirect && https=1
 fi
 
 say "7/7 Checks"
