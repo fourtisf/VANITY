@@ -218,6 +218,13 @@ fp.on('pageerror', e => fail('free page error: ' + e.message));
 await fp.goto(`http://127.0.0.1:${freePort}/`, { waitUntil: 'load' });
 await fp.waitForSelector('#hdrWallet:not([hidden])', { timeout: 30000 });
 check(!!(await fp.evaluate(() => fetch('api/blockhash').then(r => r.json()))).blockhash, 'no blockhash without PAY_TO');
+// A word that would take more than a day on this device cannot be started.
+await fp.waitForFunction(() => /keys\/sec/.test(document.querySelector('#sSub').textContent), null, { timeout: 30000 });
+await fp.fill('#pre', 'pumppump');
+await fp.waitForFunction(() => document.querySelector('#go').disabled && /Too long/.test(document.querySelector('#goText').textContent), null, { timeout: 5000 })
+  .catch(async () => fail('an impossible word could be started: ' + await fp.textContent('#goText')));
+check(/too long to search in a browser/.test(await fp.textContent('#slow')), 'no explanation for the blocked word');
+await fp.fill('#pre', '');
 await fp.waitForSelector('#fast:not([hidden])', { timeout: 30000 });
 await fp.click('#fast'); await fp.fill('#pre', 'A');
 await fp.waitForSelector('#go:not([disabled])', { timeout: 30000 });

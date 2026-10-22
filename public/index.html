@@ -651,7 +651,9 @@ const { ALPH, COMMON, b58 } = VP;
 const $ = id => document.getElementById(id);
 const now = () => performance.now();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const HC = Math.max(1, Math.min(navigator.hardwareConcurrency || 4, 32));
+// One core stays free for the page itself, so the tab and the rest of the computer stay responsive while searching.
+const HC = Math.max(1, Math.min((navigator.hardwareConcurrency || 4) - 1, 31));
+const MAX_DEVICE_SECONDS = 86400;   // longer than a day on this device is not worth starting
 const WORKER_SRC = $('workerSrc').textContent;
 const WHERE = { gpu: 'your GPU', cpu: 'your CPU', server: 'our cloud GPU' };
 
@@ -769,7 +771,7 @@ async function gpuInit(cpuReady){
     const st = await g.selfTest();
     if (!st.ok){ console.warn('GPU self-test failed', st); throw new Error('selftest'); }
     await cpuReady;
-    await VG.bench(g, 1000, 90);
+    await VG.bench(g, 1000, 50);
     G.g = g; G.rate = g.rate; G.status = 'ready';
   } catch (e) {
     console.info('GPU engine unavailable:', e && e.message);
@@ -1075,7 +1077,8 @@ async function resumeSavedJob(){
 /* ---------- engine choice ---------- */
 function engine(){
   if (state.fast && state.server.status === 'ready') return 'server';
-  if (state.gpu.status === 'ready') return 'gpu';
+  // A weak or emulated graphics card can be slower than the processor: use whichever measured faster.
+  if (state.gpu.status === 'ready') return deviceEngine();
   if (state.gpu.status === 'pending' && 'gpu' in navigator) return 'gpu';
   return 'cpu';
 }
@@ -1120,7 +1123,9 @@ function engineRate(e){
   return state.cpu.perThread * state.cpu.workers.length;
 }
 const cleanVal = id => $(id).value.replace(/\s+/g, '');
-const deviceRate = () => state.gpu.status === 'ready' ? state.gpu.rate : (state.cpu.status === 'ready' ? engineRate('cpu') : 0);
+// The engine this device searches with when Fast mode is off: the faster of graphics card and processor.
+const deviceEngine = () => state.gpu.status === 'ready' && !(state.cpu.status === 'ready' && engineRate('cpu') > state.gpu.rate) ? 'gpu' : 'cpu';
+const deviceRate = () => { const d = deviceEngine(); return d === 'gpu' ? state.gpu.rate : (state.cpu.status === 'ready' ? engineRate('cpu') : 0); };
 
 function update(){
   const a = VP.analyze($('pre').value, $('suf').value, state.anyCase);
@@ -1146,6 +1151,7 @@ function update(){
   const ready = engineReady(e);
   const info = state.server.info;
   const tooSlowForServer = e === 'server' && info && avg > info.maxExpectedSeconds;
+  const tooSlowHere = e !== 'server' && ready && avg > MAX_DEVICE_SECONDS;
 
   $('count').textContent = `${a.preRaw.length + a.sufRaw.length}/44`;
   if (!state.running){
@@ -1163,7 +1169,9 @@ function update(){
     const per = state.anyCase ? 29 : 58;
     if (tooSlowForServer) slow = `About <b>${fmtWait(avg)}</b> even in Fast mode, which is over its limit. Each extra letter makes a match about ${per}× rarer, so remove a letter or two.`;
     else {
-      slow = `About <b>${fmtWait(avg)}</b> on ${WHERE[e]}. Each extra letter makes a match about ${per}× rarer.`;
+      slow = tooSlowHere
+        ? `About <b>${fmtWait(avg)}</b> on ${WHERE[e]}, too long to search in a browser. Remove a letter or two${state.anyCase ? '' : ', or pick Any capitalization'}: each letter makes a match about ${per}× rarer.`
+        : `About <b>${fmtWait(avg)}</b> on ${WHERE[e]}. Each extra letter makes a match about ${per}× rarer.`;
       if (a.preRaw && a.sufRaw) slow += ` On its own, “${esc(a.preRaw)}” takes about ${fmtWait(1/(VP.prefixProb(a.pre.sets)*rate))} and “${esc(a.sufRaw)}” about ${fmtWait(1/(VP.suffixProb(a.suf.sets)*rate))}.`;
       if (e !== 'server' && state.server.status === 'ready' && info && info.rate > rate){
         const sAvg = 1 / (p * info.rate);
@@ -1174,8 +1182,8 @@ function update(){
   note('err', err); note('tip', tip); note('slow', state.running ? '' : slow);
 
   if (!state.running){
-    $('go').disabled = !ready || !!err || a.empty || !!tooSlowForServer;
-    $('goText').textContent = state.found ? 'Find another' : 'Generate address';
+    $('go').disabled = !ready || !!err || a.empty || !!tooSlowForServer || tooSlowHere;
+    $('goText').textContent = tooSlowHere || tooSlowForServer ? 'Too long: shorten the word' : state.found ? 'Find another' : 'Generate address';
     $('statusText').textContent = !ready ? (state[e].status === 'pending' ? 'Getting your device ready' : 'Not available in this browser')
       : state.found ? `Found on ${WHERE[state.found.engine]} in ${fmtElapsed(state.found.elapsed)}`
       : a.empty ? 'Type a word to see a preview' : `Ready on ${WHERE[e]}`;
@@ -1209,7 +1217,7 @@ function renderTimes(){
     const keys = 1 / a.p;
     return `<tr><td class="ca">${ca}</td><td class="hide-m">${capLabel}</td><td class="r">${fmtBig(keys)}</td><td class="r">${rate ? cap(fmtWait(keys / rate)) : '–'}</td></tr>`;
   }).join('');
-  $('timesNote').textContent = rate ? `Measured on this device: ${fmtBig(rate)} keys per second on ${state.gpu.status === 'ready' ? 'your GPU' : 'your processor'}.` : 'Speed is measured when the page loads.';
+  $('timesNote').textContent = rate ? `Measured on this device: ${fmtBig(rate)} keys per second on ${deviceEngine() === 'gpu' ? 'your GPU' : 'your processor'}.` : 'Speed is measured when the page loads.';
 }
 
 /* ---------- run ---------- */
@@ -1239,7 +1247,8 @@ function start(saved){
 async function runGpu(id, a){
   try {
     await VG.grind(state.gpu.g, {
-      pre: a.pre.sets, suf: a.suf.sets, match: VP.matcher(a.pre.sets, a.suf.sets), targetMs: 90,
+      // Short GPU batches leave the graphics card time to draw the page, so the browser does not stutter.
+      pre: a.pre.sets, suf: a.suf.sets, match: VP.matcher(a.pre.sets, a.suf.sets), targetMs: 50,
       isActive: () => state.running && id === state.runId,
       onBatch: b => {
         if (id !== state.runId) return;
