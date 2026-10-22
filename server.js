@@ -83,6 +83,10 @@ async function makeGpuEngine() {
 
 async function makeCpuEngine() {
   const workers = Array.from({ length: CFG.cpuThreads }, () => new Worker(new URL('./engine/cpu-worker.mjs', import.meta.url)));
+  const libs = await Promise.all(workers.map(w => new Promise((ok, fail) => {
+    w.once('error', fail);
+    w.on('message', m => m.type === 'ready' && ok(m.lib));
+  })));
   let runId = 0, handler = null;
   workers.forEach(w => w.on('message', m => handler && handler(m)));
   const startAll = (id, pre, suf) => workers.forEach(w => w.postMessage({ type: 'start', runId: id, pre, suf }));
@@ -93,7 +97,7 @@ async function makeCpuEngine() {
   startAll(bid, [''], []);
   await sleep(400); count = 0; await sleep(1600); stopAll();
   const eng = {
-    kind: 'cpu', device: `${CFG.cpuThreads} CPU threads`, rate: count / 1.6,
+    kind: 'cpu', device: `${CFG.cpuThreads} CPU threads, ${libs[0]}`, rate: count / 1.6,
     grind(job, isActive, onProgress) {
       return new Promise(resolve => {
         const id = ++runId; let done = false, winN = 0, winT = Date.now();

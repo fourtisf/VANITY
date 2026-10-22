@@ -128,6 +128,10 @@ h1{margin:18px auto 14px;font:700 clamp(40px,7vw,76px)/.98 var(--display);letter
 .note.info{background:rgba(143,114,255,.08);color:#D9D0FF;border:1px solid rgba(143,114,255,.28)}
 .note b{font-weight:800}
 .note[hidden]{display:none}
+.note .try{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;color:var(--text)}
+.note .try button{font:700 15px var(--mono);color:var(--teal);background:var(--well);border:1px solid var(--line);border-radius:12px;padding:7px 12px;cursor:pointer}
+.note .try button:hover{border-color:var(--teal)}
+.note .try button i{font:700 13px var(--sans);font-style:normal;color:var(--muted);margin-left:4px}
 
 .choices{display:grid;gap:12px;margin-top:22px}
 .choice,.switchrow{display:flex;align-items:center;gap:18px;width:100%;text-align:left;padding:20px 22px;border-radius:20px;border:1.5px solid var(--line);background:var(--well2);transition:border-color .2s,background .2s,box-shadow .2s}
@@ -454,7 +458,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
     <button type="button" class="switchrow" id="fast" role="switch" aria-checked="false" hidden>
       <span class="switch"></span>
       <span><span class="t"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>Fast mode</span>
-      <span class="d">Our cloud GPU takes the long words. It makes the key and seals it so only this browser can open it.</span></span>
+      <span class="d"><span class="srv" data-cap>Our cloud GPU</span> takes the long words. It makes the key and seals it so only this browser can open it.</span></span>
     </button>
 
     <p class="note tip" id="slow" hidden></p>
@@ -478,7 +482,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <div class="runmeta"><span id="rLuck"></span><span id="rTime"></span></div>
     </div>
     <div class="note info paybox" id="paybox" hidden>
-      <div class="payhead"><p>Pay <b><span id="payAmt"></span> SOL</b> to start the search on our cloud GPU.</p><span class="paytime" id="payTime"></span></div>
+      <div class="payhead"><p>Pay <b><span id="payAmt"></span> SOL</b> to start the search on <span class="srv">our cloud GPU</span>.</p><span class="paytime" id="payTime"></span></div>
       <div class="paywallet" id="payWallet" hidden>
         <img id="payWalletIcon" alt="">
         <span><b id="payWalletName"></b><span class="addr" id="payWalletAddr"></span></span>
@@ -569,7 +573,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
     <details><summary>How do I use the key?</summary><p>In Phantom or Solflare, choose Add wallet, then Import private key, and paste it. For the Solana CLI, use the downloaded keypair file. For a token, use the keypair as the mint when you create the token.</p></details>
     <details><summary>Why do some words take so much longer?</summary><p>Each character adds about 58 times more work, or 29 times with any capitalization. Solana addresses also almost always start with 2–9 or A–H, so other first characters are 25 to 60 times rarer again. Short words and uppercase starts are fastest.</p></details>
     <details><summary>Why does Token address end in pump?</summary><p>Many launchpads give token addresses a recognizable ending such as pump. The Token address tab fills that ending in and matches it exactly, so your mint looks native to the launchpad. You can change it.</p></details>
-    <details><summary>What does it cost?</summary><p id="faqCost">Searching on your own device is free. Fast mode uses our cloud GPU for longer words.</p></details>
+    <details><summary>What does it cost?</summary><p id="faqCost">Searching on your own device is free. Fast mode uses <span class="srv">our cloud GPU</span> for longer words.</p></details>
     <details><summary>Can someone else get my key from the address?</summary><p>No. The address comes from the key in one direction only, so a nice-looking address gives nobody a shortcut to your key.</p></details>
   </div>
 </section>
@@ -780,7 +784,7 @@ async function gpuInit(cpuReady){
   refresh();
 }
 
-/* ---------- cloud GPU (server) ---------- */
+/* ---------- Fast mode server ---------- */
 async function serverInit(){
   if (location.protocol === 'file:'){ state.server.status = 'off'; refresh(); return; }
   try {
@@ -788,8 +792,11 @@ async function serverInit(){
     if (!r.ok) throw new Error(r.status);
     state.server.info = await r.json(); state.server.status = 'ready';
   } catch { state.server.status = 'off'; }
+  // A server without a graphics card is not called a cloud GPU anywhere on the page.
+  WHERE.server = state.server.info && state.server.info.engine !== 'gpu' ? 'our server' : 'our cloud GPU';
+  document.querySelectorAll('.srv').forEach(x => { x.textContent = 'cap' in x.dataset ? cap(WHERE.server) : WHERE.server; });
   const pay = state.server.info && state.server.info.pay;
-  if (pay) $('faqCost').textContent = `Searching on your own device is free. Fast mode on our cloud GPU costs from ${fmtSol(pay.priceSol)} SOL per search, a little more for longer words, paid from your Solana wallet before the search starts.`;
+  if (pay) $('faqCost').textContent = `Searching on your own device is free. Fast mode on ${WHERE.server} costs from ${fmtSol(pay.priceSol)} SOL per search, a little more for longer words, paid from your Solana wallet before the search starts.`;
   if (state.server.status === 'ready' && state.wantFast) setFast(true);
   renderHeaderWallet(); reconnect();
   refresh();
@@ -1123,6 +1130,18 @@ function engineRate(e){
   return state.cpu.perThread * state.cpu.workers.length;
 }
 const cleanVal = id => $(id).value.replace(/\s+/g, '');
+// Shorter versions of the word that finish within 10 minutes at this rate: keep as many letters as possible,
+// whole parts first, then the quickest. Returns up to two.
+function quicker(a, rate){
+  const out = [];
+  for (let i = 0; i <= a.preRaw.length; i++) for (let j = 0; j <= a.sufRaw.length; j++){
+    if (!i && !j || i === a.preRaw.length && j === a.sufRaw.length) continue;
+    const pre = a.preRaw.slice(0, i), suf = a.sufRaw.slice(a.sufRaw.length - j), b = VP.analyze(pre, suf, state.anyCase);
+    const avg = 1 / (b.p * rate);
+    if (!b.error && avg <= 600) out.push({ pre, suf, avg, kept: i + j, whole: i === a.preRaw.length || j === a.sufRaw.length });
+  }
+  return out.sort((x, y) => y.kept - x.kept || y.whole - x.whole || x.avg - y.avg).slice(0, 2);
+}
 // The engine this device searches with when Fast mode is off: the faster of graphics card and processor.
 const deviceEngine = () => state.gpu.status === 'ready' && !(state.cpu.status === 'ready' && engineRate('cpu') > state.gpu.rate) ? 'gpu' : 'cpu';
 const deviceRate = () => { const d = deviceEngine(); return d === 'gpu' ? state.gpu.rate : (state.cpu.status === 'ready' ? engineRate('cpu') : 0); };
@@ -1161,8 +1180,9 @@ function update(){
       : p ? `1 in ${fmtBig(1/p)} keys on ${WHERE[e]}, ${fmtBig(rate)}/sec` : `${WHERE[e]}, ${fmtBig(rate)} keys/sec`.replace(/^./, c => c.toUpperCase());
     const pay = e === 'server' && info && info.pay, known = p && ready && isFinite(avg);
     $('sCost').textContent = pay ? `${fmtSol(pay.priceSol + (known ? pay.priceSolPerHour * avg / 3600 : 0))} SOL` : 'Free';
-    $('sCostSub').textContent = e !== 'server' ? 'Runs on your device' : !pay ? 'Cloud GPU, free during beta'
-      : known ? 'Cloud GPU, paid in SOL before it starts' : 'Cloud GPU, more for longer words';
+    const srv = WHERE.server === 'our cloud GPU' ? 'Cloud GPU' : 'Our server';
+    $('sCostSub').textContent = e !== 'server' ? 'Runs on your device' : !pay ? `${srv}, free during beta`
+      : known ? `${srv}, paid in SOL before it starts` : `${srv}, more for longer words`;
   }
 
   if (!err && avg > 3600 && !state.running){
@@ -1178,6 +1198,10 @@ function update(){
         if (sAvg <= info.maxExpectedSeconds) slow += ` Fast mode would take about ${fmtWait(sAvg)}.`;
       }
     }
+  }
+  if (slow && rate){
+    const q = quicker(a, rate);
+    if (q.length) slow += `<span class="try">Quicker: ${q.map(x => `<button type="button" data-pre="${esc(x.pre)}" data-suf="${esc(x.suf)}">${esc(x.pre)}…${esc(x.suf)} <i>${fmtWait(x.avg)}</i></button>`).join('')}</span>`;
   }
   note('err', err); note('tip', tip); note('slow', state.running ? '' : slow);
 
@@ -1238,7 +1262,7 @@ function start(saved){
   $('make').classList.remove('happy'); $('make').classList.add('working');
   $('goText').textContent = 'Stop'; $('go').classList.add('stop'); $('go').disabled = false;
   $('runbox').hidden = e === 'server' && !!(state.server.info && state.server.info.pay); lock(true);
-  $('statusText').textContent = e === 'server' ? 'Sending to our cloud GPU' : `Searching on ${WHERE[e]}`;
+  $('statusText').textContent = e === 'server' ? `Sending to ${WHERE.server}` : `Searching on ${WHERE[e]}`;
   if (e === 'gpu') runGpu(id, a);
   else if (e === 'cpu') state.cpu.workers.forEach(w => w.postMessage({ type: 'start', runId: id, pre: a.pre.sets, suf: a.suf.sets }));
   else runServer(id, a, saved && saved.id ? saved : null);
@@ -1289,8 +1313,8 @@ function tick(t){
       $('statusText').textContent = state.serverStatus === 'offline' ? 'Lost contact with the server, retrying'
         : state.serverStatus === 'unpaid' ? (state.job.paySig ? 'Waiting for your payment to confirm' : 'Waiting for your payment')
         : state.serverStatus === 'queued'
-        ? (state.ahead ? `Waiting for our cloud GPU, ${state.ahead} ${state.ahead === 1 ? 'search' : 'searches'} ahead` : 'Starting on our cloud GPU')
-        : 'Searching on our cloud GPU';
+        ? (state.ahead ? `Waiting for ${WHERE.server}, ${state.ahead} ${state.ahead === 1 ? 'search' : 'searches'} ahead` : `Starting on ${WHERE.server}`)
+        : `Searching on ${WHERE.server}`;
     }
     const r = engineRate(info.engine);
     if (r){ $('sAvg').textContent = fmtRange(1 / (p * r)); $('sSub').textContent = `${fmtBig(r)} keys/sec on ${WHERE[info.engine]}`; }
@@ -1418,6 +1442,10 @@ function setMode(mode, keepFields){
 document.querySelectorAll('[data-case]').forEach(b => b.addEventListener('click', () => setCase(b.dataset.case === 'any')));
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
 $('fast').addEventListener('click', () => setFast(!state.fast));
+$('slow').addEventListener('click', e => {
+  const b = e.target.closest('button[data-pre]'); if (!b) return;
+  $('pre').value = b.dataset.pre; $('suf').value = b.dataset.suf; clearFound(); update();
+});
 $('payBtn').addEventListener('click', () => state.wallet ? pay() : openWallets(pay));
 $('payChange').addEventListener('click', () => openWallets(null));
 $('hdrWallet').addEventListener('click', e => { e.stopPropagation(); if (state.wallet) $('hdrMenu').hidden = !$('hdrMenu').hidden; else openWallets(null); });

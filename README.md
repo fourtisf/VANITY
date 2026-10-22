@@ -19,7 +19,7 @@ brand/                 Plato mascot (plato.svg) and the X profile picture and he
 engine/vanity.wgsl     GPU shader (SHA-512, ed25519, base58 checks), shared by browser and server
 engine/gpu-engine.js   WebGPU host code, shared by browser and server
 engine/pattern.js      Pattern parsing and odds, shared by browser and server
-engine/cpu-worker.mjs  Server CPU fallback (worker_threads)
+engine/cpu-worker.mjs  Server CPU fallback (worker_threads; libsodium when installed, else WebCrypto)
 public/index.html      The website
 public/legal.html      Terms, privacy and refund policy (templates: have them reviewed)
 public/fonts/          Self-hosted fonts (SIL Open Font License, see LICENSE.txt there)
@@ -37,11 +37,11 @@ scripts/chain-test.mjs    The payment sent to a real Solana node and found by th
 ## Run locally
 
 ```bash
-npm install          # Node 20+; installs the optional 'webgpu' package (Dawn) for the server GPU
+npm install          # Node 20+; installs the optional 'webgpu' (Dawn, server GPU) and 'sodium-native' (server CPU) packages
 npm start            # http://localhost:8080
 ```
 
-Without a GPU the server falls back to CPU threads by itself and says so in the log.
+Without a GPU the server falls back to CPU threads by itself and says so in the log. Those use libsodium from the optional `sodium-native` package, about 5x faster than Node's built-in WebCrypto, which is used when the package is missing: the log line reads `engine: cpu (4 CPU threads, libsodium)` or `(…, WebCrypto)`. Even so, 4 CPU cores make about 130,000 keys a second, while one NVIDIA GPU makes millions.
 
 ## Deploy on a GPU VPS (recommended)
 

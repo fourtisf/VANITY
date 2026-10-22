@@ -224,6 +224,11 @@ await fp.fill('#pre', 'pumppump');
 await fp.waitForFunction(() => document.querySelector('#go').disabled && /Too long/.test(document.querySelector('#goText').textContent), null, { timeout: 5000 })
   .catch(async () => fail('an impossible word could be started: ' + await fp.textContent('#goText')));
 check(/too long to search in a browser/.test(await fp.textContent('#slow')), 'no explanation for the blocked word');
+// It offers shorter words that finish in minutes; picking one fills it in and can be started.
+await fp.click('#slow .try button >> nth=0', { timeout: 5000 }).catch(async () => fail('no quicker word offered: ' + await fp.textContent('#slow')));
+const quick = await fp.inputValue('#pre');
+check(quick && quick.length < 8 && 'pumppump'.startsWith(quick), `quicker word: ${quick}`);
+await fp.waitForSelector('#go:not([disabled])', { timeout: 5000 }).catch(() => fail('the quicker word cannot be started'));
 await fp.fill('#pre', '');
 await fp.waitForSelector('#fast:not([hidden])', { timeout: 30000 });
 await fp.click('#fast'); await fp.fill('#pre', 'A');

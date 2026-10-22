@@ -20,7 +20,7 @@ A website that creates Solana wallet or token addresses starting or ending with 
 | `engine/vanity.wgsl` | GPU shader: SHA-512, ed25519, base58 checks. Shared by browser and server |
 | `engine/gpu-engine.js` | WebGPU host code. Shared by browser and server |
 | `engine/pattern.js` | Pattern parsing and odds. Shared by browser and server |
-| `engine/cpu-worker.mjs` | Server CPU fallback |
+| `engine/cpu-worker.mjs` | Server CPU fallback: libsodium (optional npm package `sodium-native`), else WebCrypto |
 | `scripts/smoke.mjs` | End-to-end check of a running server (`npm run smoke -- <url>`) |
 | `scripts/pay-test.mjs` | Fast mode payment check against a fake Solana RPC (`npm run test:pay`) |
 | `scripts/browser-test.mjs` | Payment flow in Chromium with fake wallets (`npm run test:browser`, needs Playwright, see the file) |
@@ -34,6 +34,7 @@ Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.
 
 - Node 20 or newer (uses WebCrypto Ed25519).
 - For Fast mode on a GPU: an NVIDIA GPU with driver plus the Vulkan loader (`libvulkan1`). The optional npm package `webgpu` (Dawn) talks to Vulkan.
+- Without a GPU, Fast mode runs on CPU threads with the optional npm package `sodium-native` (libsodium, about 32,000 keys/sec per core). If it fails to install, the server uses WebCrypto, about 5x slower. The log line `engine: cpu (N CPU threads, libsodium)` shows which one runs.
 - HTTPS on a real domain. Browsers only allow WebGPU and WebCrypto on secure origins.
 
 ## Deploy steps (Ubuntu VPS)
