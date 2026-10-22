@@ -56,10 +56,11 @@ Speed comes from the GPU. A plain CPU VPS works, but it is about as fast as a go
    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
    git clone <repo> vanity && cd vanity && npm install
    ```
-4. Start it under a process manager:
+4. Fill in the settings and start it under a process manager:
    ```bash
+   cp .env.example .env && nano .env    # wallet, RPC key, site name, contact (see Settings)
    sudo npm i -g pm2
-   PORT=8080 TRUST_PROXY=1 pm2 start server.js --name vanity
+   pm2 start server.js --name vanity
    pm2 save && pm2 startup
    ```
    The log should say `engine: gpu (nvidia), ~N keys/sec`. If it says the GPU is unavailable, check `vulkaninfo --summary`.
@@ -81,10 +82,12 @@ Speed comes from the GPU. A plain CPU VPS works, but it is about as fast as a go
 
 ```bash
 docker build -t solana-vanity .
-docker run --gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility -p 8080:8080 solana-vanity
+docker run --gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility --env-file .env -p 8080:8080 solana-vanity
 ```
 
 ## Settings (environment variables)
+
+Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and variables set in the environment win. Mainnet is the default cluster.
 
 | Variable | Default | Meaning |
 |---|---|---|

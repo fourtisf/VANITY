@@ -49,7 +49,7 @@ const port = 20000 + Math.floor(Math.random() * 20000), base = `http://127.0.0.1
 const savedJobs = () => { try { return JSON.parse(readFileSync(PAID_JOBS_FILE, 'utf8')).map(j => j.id); } catch { return []; } };
 async function startServer() {
   server = spawn(process.execPath, [fileURLToPath(new URL('../server.js', import.meta.url))], {
-    env: { ...process.env, ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(port), PAY_TO, PAID_JOBS_FILE, TRUST_PROXY: '1', MAX_UNPAID: '1',
+    env: { ...process.env, ENV_FILE: path.join(tmpdir(), 'no-such.env'), ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(port), PAY_TO, PAID_JOBS_FILE, TRUST_PROXY: '1', MAX_UNPAID: '1',
       CONTACT_EMAIL: 'help@example.com', SOLANA_RPC: `http://127.0.0.1:${rpc.address().port}` },
     stdio: ['ignore', 'pipe', 'inherit'],
   });

@@ -40,7 +40,7 @@ await new Promise(r => rpc.listen(0, '127.0.0.1', r));
 
 const port = 20000 + Math.floor(Math.random() * 20000), base = `http://127.0.0.1:${port}`;
 server = spawn(process.execPath, [path.join(root, 'server.js')], {
-  env: { ...process.env, ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(port), PAY_TO, PAID_JOBS_FILE,
+  env: { ...process.env, ENV_FILE: path.join(tmpdir(), 'no-such.env'), ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(port), PAY_TO, PAID_JOBS_FILE,
     SITE_NAME: 'Test Vanity', SITE_URL: 'https://vanity.example', CONTACT_EMAIL: 'help@vanity.example', SOLANA_RPC: `http://127.0.0.1:${rpc.address().port}` },
   stdio: ['ignore', 'pipe', 'inherit'],
 });

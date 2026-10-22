@@ -50,9 +50,7 @@ Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.
    ```bash
    npm install
    sudo npm i -g pm2
-   PORT=8080 TRUST_PROXY=1 MAX_EXPECTED_SECONDS=3600 \
-   SITE_NAME="..." SITE_URL=https://vanity.example.com CONTACT_EMAIL=... OPERATOR_NAME="..." JURISDICTION=... \
-   PAY_TO=<owner's wallet> SOLANA_RPC=<provider URL> \
+   cp .env.example .env   # then fill in PAY_TO, SOLANA_RPC, SITE_NAME, SITE_URL, contact, OPERATOR_NAME, JURISDICTION with the owner's values
    pm2 start server.js --name vanity
    pm2 install pm2-logrotate
    pm2 save && pm2 startup
@@ -92,12 +90,14 @@ Do not edit `engine/vanity.wgsl` or the verification code in `engine/gpu-engine.
 
 ```bash
 docker build -t solana-vanity .
-docker run -d --restart unless-stopped --gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility -e TRUST_PROXY=1 -p 8080:8080 solana-vanity
+docker run -d --restart unless-stopped --gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility --env-file .env -p 8080:8080 solana-vanity
 ```
 
 With payments on, keep paid jobs across container rebuilds with a volume: add `-v vanity-data:/data -e PAID_JOBS_FILE=/data/paid-jobs.json`.
 
 ## Settings
+
+Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and variables set in the environment win. Mainnet is the default cluster.
 
 | Variable | Default | Meaning |
 |---|---|---|

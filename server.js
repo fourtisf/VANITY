@@ -13,6 +13,10 @@ import { fileURLToPath } from 'node:url';
 import { siteConfig, renderPage, hasContact } from './site.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
+// Settings can live in a .env file next to server.js (copy .env.example); variables set in the environment win.
+if (typeof process.loadEnvFile === 'function') {
+  try { process.loadEnvFile(process.env.ENV_FILE || path.join(ROOT, '.env')); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+}
 await import('./engine/pattern.js');
 await import('./engine/gpu-engine.js');
 const { VanityPattern: VP, VanityGPU } = globalThis;
@@ -39,6 +43,7 @@ const CFG = {
   priceSolPerHour: +env('PRICE_SOL_PER_HOUR', 0.1),    // ...plus this much per hour of average search time
   cluster: env('SOLANA_CLUSTER', 'mainnet'),           // mainnet | devnet | testnet
 };
+if (!['mainnet', 'devnet', 'testnet'].includes(CFG.cluster)) throw new Error(`SOLANA_CLUSTER must be mainnet, devnet or testnet, not ${CFG.cluster}`);
 CFG.rpc = env('SOLANA_RPC', `https://api.${CFG.cluster === 'mainnet' ? 'mainnet-beta' : CFG.cluster}.solana.com`);
 CFG.paidFile = env('PAID_JOBS_FILE', path.join(ROOT, 'paid-jobs.json'));
 const SITE = siteConfig();
@@ -437,5 +442,6 @@ await initEngine();
 if (CFG.payTo) { await loadPaid(); setImmediate(runNext); }
 log(CFG.payTo ? `Fast mode payments: ${CFG.priceSol} SOL + ${CFG.priceSolPerHour} SOL/hr to ${CFG.payTo} on ${CFG.cluster} via ${new URL(CFG.rpc).host}` : 'Fast mode is free (set PAY_TO to charge for it)');
 if (CFG.payTo && !hasContact(SITE)) log('warning: set CONTACT_EMAIL or CONTACT_TELEGRAM so paying customers can reach you for refunds');
+if (CFG.payTo && CFG.cluster === 'mainnet' && !env('SOLANA_RPC', '')) log("warning: payments use Solana's public mainnet RPC, which rate-limits busy sites; set SOLANA_RPC to a provider URL");
 server.listen(CFG.port, CFG.host, () => log(`Vanity server listening on http://${CFG.host}:${CFG.port}`));
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { log('shutting down'); server.close(); process.exit(0); });
