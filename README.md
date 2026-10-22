@@ -30,6 +30,7 @@ scripts/setup-server.sh   One-command install on an Ubuntu VPS (pm2, Nginx, HTTP
 scripts/smoke.mjs      End-to-end check of a running server (npm run smoke -- <url>)
 scripts/pay-test.mjs   Fast mode payment check against a fake Solana RPC (npm run test:pay)
 scripts/browser-test.mjs  The payment flow in a real browser with fake wallets (npm run test:browser)
+scripts/chain-test.mjs    The payment sent to a real Solana node and found by the server (npm run test:chain -- <rpc>)
 .github/workflows/test.yml  Runs all of the above on every push
 ```
 
@@ -153,4 +154,4 @@ There are no automatic refunds. A paid job that fails is logged with the payer a
 
 - Uptime: point a monitor such as UptimeRobot or Better Stack at `https://your-domain/api/status`; it answers JSON with the engine and queue length.
 - Logs: `pm2 install pm2-logrotate` keeps them from filling the disk. Lines worth an alert: `GPU device lost` (the process restarts itself), `payment check failed` or `blockhash failed` (the RPC is down or rate-limiting), `hit the time limit` and `job failed` (refunds).
-- Tests: `npm run smoke -- <url>` against the live site after each deploy. GitHub Actions runs the smoke test, the payment test, the browser test and the one-file build on every push.
+- Tests: `npm run smoke -- <url>` against the live site after each deploy. GitHub Actions runs the smoke test, the payment test, the browser test, the one-file build, and the real-chain test (payments sent to a local Agave validator) on every push. `npm run test:chain -- https://api.devnet.solana.com` runs the real-chain test on devnet from any machine (set `PAYER_KEYPAIR` to a funded devnet keypair if the faucet refuses).

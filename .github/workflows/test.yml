@@ -36,3 +36,41 @@ jobs:
       - name: Server log
         if: failure()
         run: cat server.log || true
+
+  # The payment against a real Solana node (Agave's test validator: the same runtime and RPC as mainnet).
+  chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Solana (Agave)
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - name: Start a local Solana validator
+        run: |
+          solana-test-validator --version
+          solana-test-validator --reset --quiet --ledger "$RUNNER_TEMP/ledger" > validator.log 2>&1 &
+          for i in $(seq 1 120); do
+            curl -s http://127.0.0.1:8899 -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}' | grep -q '"ok"' && exit 0
+            sleep 1
+          done
+          echo "validator did not come up"; cat validator.log; exit 1
+      - name: Real-chain payment test
+        run: |
+          npm i --no-save --omit=optional playwright@1.56.1 @solana/web3.js@1.98.4
+          npx playwright install --with-deps chromium
+          npm run test:chain -- http://127.0.0.1:8899 chain-screenshots
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chain-screenshots
+          path: chain-screenshots
+          if-no-files-found: ignore
+      - name: Validator log
+        if: failure()
+        run: tail -n 100 validator.log || true

@@ -24,6 +24,7 @@ A website that creates Solana wallet or token addresses starting or ending with 
 | `scripts/smoke.mjs` | End-to-end check of a running server (`npm run smoke -- <url>`) |
 | `scripts/pay-test.mjs` | Fast mode payment check against a fake Solana RPC (`npm run test:pay`) |
 | `scripts/browser-test.mjs` | Payment flow in Chromium with fake wallets (`npm run test:browser`, needs Playwright, see the file) |
+| `scripts/chain-test.mjs` | Payments sent to a real Solana node, found by the server, checked on chain (`npm run test:chain -- <rpc>`; CI uses a local Agave validator) |
 | `scripts/setup-server.sh` | One-command install on an Ubuntu VPS: packages, `.env` questions, pm2, Nginx, HTTPS, smoke test |
 | `scripts/build-single.mjs` | Builds `dist/vanity.html`, a one-file offline version without Fast mode |
 
