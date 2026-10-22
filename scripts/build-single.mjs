@@ -17,6 +17,11 @@ for (const f of ['fredoka', 'nunito', 'jetbrains-mono']) {
   const font = await readFile(path.join(root, 'public', 'fonts', f + '.woff2'));
   html = html.replace(`url(fonts/${f}.woff2)`, () => `url(data:font/woff2;base64,${font.toString('base64')})`);
 }
+// The icon, too: there is no server to fetch it from.
+const icon = await readFile(path.join(root, 'public', 'icon-192.png'));
+html = html.replace(/\s*<!-- PNG icons:.*?-->\s*<link rel="icon"[^>]*>\s*<link rel="apple-touch-icon"[^>]*>/s,
+  () => `\n<link rel="icon" type="image/png" href="data:image/png;base64,${icon.toString('base64')}">`);
+if (!html.includes('data:image/png;base64')) throw new Error('icon links not found');
 html = renderPage(html, siteConfig({}))
   .replace(/\s*<div><h4>Legal<\/h4>.*?<\/div>/, '')
   .replace(/\s*<p class="small legal">.*?<\/p>/, '');
