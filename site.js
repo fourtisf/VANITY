@@ -13,12 +13,17 @@ export function siteConfig(env = process.env) {
     operator: get('OPERATOR_NAME', name),
     jurisdiction: get('JURISDICTION'),
     source: get('SOURCE_URL'),
+    // With payments on, every search is paid and runs on the server, unless DEVICE_SEARCH=on keeps the free
+    // search on the visitor's own device.
+    paidOnly: !!get('PAY_TO') && get('DEVICE_SEARCH').toLowerCase() !== 'on',
   };
 }
 
 export const hasContact = site => !!(site.email || site.telegram);
 
 export function renderPage(html, site, origin = '') {
+  // {{#PAID}}…{{/PAID}} is kept only when every search is paid, {{^PAID}}…{{/PAID}} only when it is not.
+  html = html.replace(/\{\{([#^])PAID\}\}([\s\S]*?)\{\{\/PAID\}\}/g, (m, k, body) => ((k === '#') === !!site.paidOnly ? body : ''));
   const contact = [
     site.email && `<a href="mailto:${esc(site.email)}" data-contact>${esc(site.email)}</a>`,
     site.telegram && `<a href="https://t.me/${esc(site.telegram)}" target="_blank" rel="noopener"${site.email ? '' : ' data-contact'}>Telegram @${esc(site.telegram)}</a>`,

@@ -110,7 +110,8 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `PAID_RESULT_TTL_SECONDS` | `86400` | The same for paid jobs |
 | `ABANDON_SECONDS` | `600` | Cancel jobs whose page stopped checking in |
 | `TRUST_PROXY` | `0` | Set `1` behind Nginx so per-IP limits use `X-Forwarded-For` |
-| `PAY_TO` | empty | Solana address that receives Fast mode payments. Empty keeps Fast mode free |
+| `PAY_TO` | empty | Solana address that receives payments. Empty keeps every search free. Set, every search is paid and runs on this server (see `DEVICE_SEARCH`) |
+| `DEVICE_SEARCH` | `off` | With `PAY_TO` set, `on` keeps the free search on the visitor's own device next to paid Fast mode |
 | `PRICE_SOL` | `0.01` | Price of one Fast mode job |
 | `PRICE_SOL_PER_HOUR` | `0.1` | Added per hour of average search time on this server (prices round to 0.0001 SOL) |
 | `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
@@ -134,7 +135,7 @@ The server still sees each key for a moment while sealing it. The website says t
 
 ## Before a public launch
 
-- **Turn on payments.** Without `PAY_TO` anyone can queue a free server job, limited per IP and by `MAX_EXPECTED_SECONDS`. Set `PAY_TO` to your wallet address and Fast mode charges `PRICE_SOL + PRICE_SOL_PER_HOUR × average hours` per job.
+- **Turn on payments.** Without `PAY_TO` anyone can queue a free server job, limited per IP and by `MAX_EXPECTED_SECONDS`. Set `PAY_TO` to your wallet address and every search is a paid server job costing `PRICE_SOL + PRICE_SOL_PER_HOUR × average hours`: the page drops the free search on the visitor's device, and its texts and the legal page say so. `DEVICE_SEARCH=on` keeps the free device search next to paid Fast mode.
 - **Say who you are.** Set `SITE_NAME`, `SITE_URL`, `CONTACT_EMAIL` or `CONTACT_TELEGRAM`, `OPERATOR_NAME` and `JURISDICTION`. Have `public/legal.html` checked by someone who knows the law where you operate; it is a starting point, not legal advice.
 - **Try it on devnet first.** Start with `SOLANA_CLUSTER=devnet`, switch your wallet to devnet, get free SOL from the faucet, and run one search end to end. Then switch to mainnet with a provider URL in `SOLANA_RPC` and pay for one search yourself. `npm run smoke -- <url>` also checks that the server reaches the RPC.
 - **Watch it.** See Monitoring below.

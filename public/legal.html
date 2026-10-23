@@ -54,15 +54,15 @@ ul{padding-left:22px}
   <section id="terms">
     <h2>Terms of service</h2>
     <h3>What the service does</h3>
-    <p>{{SITE_NAME}} makes Solana keypairs whose address starts or ends with characters you choose. On your device, the search runs in your own browser. In Fast mode, it runs on our server and the result is sealed so that only your browser can open it.</p>
+    <p>{{SITE_NAME}} makes Solana keypairs whose address starts or ends with characters you choose. {{#PAID}}The search runs on our server, and the result is sealed so that only your browser can open it.{{/PAID}}{{^PAID}}On your device, the search runs in your own browser. In Fast mode, it runs on our server and the result is sealed so that only your browser can open it.{{/PAID}}</p>
     <h3>Your key is your responsibility</h3>
     <ul>
       <li>Whoever holds the private key controls the wallet or token. Save it before you close the page. We keep no copy and cannot recover a lost key.</li>
-      <li>In Fast mode our server creates the key and holds it for a moment before sealing it to your browser and deleting it. For wallets that will hold significant funds, use the on-device search instead.</li>
+      <li>{{#PAID}}Our server creates the key and holds it for a moment before sealing it to your browser and deleting it.{{/PAID}}{{^PAID}}In Fast mode our server creates the key and holds it for a moment before sealing it to your browser and deleting it. For wallets that will hold significant funds, use the on-device search instead.{{/PAID}}</li>
       <li>Every key is checked against its address before it is shown, but you should still test a new wallet with a small amount first.</li>
     </ul>
     <h3>Payments</h3>
-    <p>Fast mode is paid in SOL from your own wallet before the search starts. The price appears on the page and again in your wallet before you approve it. Payments on the Solana blockchain cannot be reversed by us or by you; the refund policy below says when we send SOL back.</p>
+    <p>{{#PAID}}Every search{{/PAID}}{{^PAID}}Fast mode{{/PAID}} is paid in SOL from your own wallet before the search starts. The price appears on the page and again in your wallet before you approve it. Payments on the Solana blockchain cannot be reversed by us or by you; the refund policy below says when we send SOL back.</p>
     <h3>Acceptable use</h3>
     <p>Do not use the service for fraud, scams, impersonation or anything unlawful. That includes making addresses that imitate someone else's address to trick people into sending funds to it. We may refuse or stop any search.</p>
     <h3>No warranty, limited liability</h3>
@@ -73,9 +73,9 @@ ul{padding-left:22px}
 
   <section id="privacy">
     <h2>Privacy policy</h2>
-    <h3>On your device</h3>
-    <p>On-device searches never leave your browser: the word you search for and the keys it makes stay on your computer or phone. The page stores a running Fast mode search (its id and the key that opens its result) in your browser, so a reload can pick the result up, and deletes it when the search ends. It also remembers which wallet you paid with last, and keeps a list of the addresses you made (the addresses only, never their keys) for the My addresses page, where you can clear it. If you press Show balances there, the page sends those addresses to our server, which asks a Solana RPC provider for their balances. There are no cookies, analytics, ads, or third-party scripts and fonts.</p>
-    <h3>What our server receives in Fast mode</h3>
+    <h3>{{#PAID}}In your browser{{/PAID}}{{^PAID}}On your device{{/PAID}}</h3>
+    <p>{{^PAID}}On-device searches never leave your browser: the word you search for and the keys it makes stay on your computer or phone. {{/PAID}}The page stores a running {{^PAID}}Fast mode {{/PAID}}search (its id and the key that opens its result) in your browser, so a reload can pick the result up, and deletes it when the search ends. It also remembers which wallet you paid with last, and keeps a list of the addresses you made (the addresses only, never their keys) for the My addresses page, where you can clear it. If you press Show balances there, the page sends those addresses to our server, which asks a Solana RPC provider for their balances. There are no cookies, analytics, ads, or third-party scripts and fonts.</p>
+    <h3>What our server receives{{^PAID}} in Fast mode{{/PAID}}</h3>
     <ul>
       <li>The characters you search for and a public encryption key made by your browser.</li>
       <li>Your IP address, used to limit how many searches one visitor runs at a time.</li>
@@ -92,7 +92,7 @@ ul{padding-left:22px}
     <h2>Refund policy</h2>
     <h3>You get your SOL back when</h3>
     <ul>
-      <li>a paid Fast mode search ends without a result, for example because it hit the time limit or the server failed;</li>
+      <li>a paid {{^PAID}}Fast mode {{/PAID}}search ends without a result, for example because it hit the time limit or the server failed;</li>
       <li>we lose a paid search, or it never starts;</li>
       <li>you paid twice for the same search.</li>
     </ul>

@@ -6,12 +6,12 @@
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0B0C15">
 <title>Solana vanity address generator | {{SITE_NAME}}</title>
-<meta name="description" content="Make a Solana wallet or token address that starts or ends with your word. The key is made on your own graphics card.">
+<meta name="description" content="Make a Solana wallet or token address that starts or ends with your word.{{^PAID}} The key is made on your own graphics card.{{/PAID}}">
 <link rel="canonical" href="{{ORIGIN}}/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{{SITE_NAME}}">
 <meta property="og:title" content="Solana vanity address generator">
-<meta property="og:description" content="Make a Solana wallet or token address that starts or ends with your word. The key is made on your own graphics card.">
+<meta property="og:description" content="Make a Solana wallet or token address that starts or ends with your word.{{^PAID}} The key is made on your own graphics card.{{/PAID}}">
 <meta property="og:url" content="{{ORIGIN}}/">
 <meta property="og:image" content="{{ORIGIN}}/og.png">
 <meta property="og:image:width" content="1200">
@@ -395,7 +395,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
     <span class="sp"></span>
     <span class="pill">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-      <span id="pill">Keys made on your device</span>
+      <span id="pill">{{#PAID}}Sealed delivery from our server{{/PAID}}{{^PAID}}Keys made on your device{{/PAID}}</span>
     </span>
     <div class="wwrap">
       <button type="button" class="wbtn" id="hdrWallet" hidden></button>
@@ -411,7 +411,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
 <section class="hero">
   <span class="kick"><i></i>Solana vanity addresses</span>
   <h1>Put your word in your address.</h1>
-  <p>A Solana wallet or token address that starts or ends the way you want. Your own graphics card finds it, and the key never leaves your device.</p>
+  <p>A Solana wallet or token address that starts or ends the way you want. {{#PAID}}We find it for you and seal the key so only your browser can open it.{{/PAID}}{{^PAID}}Your own graphics card finds it, and the key never leaves your device.{{/PAID}}</p>
 </section>
 
 <section class="stage" id="make" aria-label="Make an address">
@@ -490,12 +490,12 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <div>
         <span class="lab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Estimated time</span>
         <div class="big" id="sAvg">–</div>
-        <div class="small" id="sSub">Measuring this device</div>
+        <div class="small" id="sSub">{{#PAID}}Checking our server{{/PAID}}{{^PAID}}Measuring this device{{/PAID}}</div>
       </div>
       <div>
         <span class="lab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M6 7h12M6 12h12M6 17h12"/></svg>Cost</span>
-        <div class="big" id="sCost">Free</div>
-        <div class="small" id="sCostSub">Runs on your device</div>
+        <div class="big" id="sCost">{{#PAID}}–{{/PAID}}{{^PAID}}Free{{/PAID}}</div>
+        <div class="small" id="sCostSub">{{#PAID}}Paid in SOL before it starts{{/PAID}}{{^PAID}}Runs on your device{{/PAID}}</div>
       </div>
     </div>
 
@@ -553,36 +553,40 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
 
 <section class="sec" id="how">
   <h2>From word to working key</h2>
-  <p class="lead">No account and no download. Everything happens in this tab.</p>
+  <p class="lead">No account and no download. {{#PAID}}Pay from your wallet, and the key comes back sealed to this tab.{{/PAID}}{{^PAID}}Everything happens in this tab.{{/PAID}}</p>
   <ol class="steps">
     <li><h3>Pick your word</h3><p>Choose how the address starts, ends, or both.</p></li>
     <li><h3>Pick capitalization</h3><p>Any capitalization is many times faster than exact.</p></li>
-    <li><h3>Your GPU grinds</h3><p>Your graphics card checks millions of keypairs until one matches.</p></li>
+    <li>{{#PAID}}<h3>Pay, and we search</h3><p>Pay from your wallet, then our server checks millions of keypairs until one matches.</p>{{/PAID}}{{^PAID}}<h3>Your GPU grinds</h3><p>Your graphics card checks millions of keypairs until one matches.</p>{{/PAID}}</li>
     <li><h3>Save your key</h3><p>Paste it into Phantom or Solflare, or download the keypair file.</p></li>
   </ol>
 </section>
 
 <section class="sec" id="times">
   <h2>How long does it take?</h2>
-  <p class="lead">Each extra character makes a match about 58 times rarer, or 29 times with any capitalization. Times use the speed measured on this device.</p>
+  <p class="lead">Each extra character makes a match about 58 times rarer, or 29 times with any capitalization. {{#PAID}}Times use the current speed of our server.{{/PAID}}{{^PAID}}Times use the speed measured on this device.{{/PAID}}</p>
   <div class="tablewrap">
     <table>
-      <thead><tr><th>Address</th><th class="hide-m">Capitalization</th><th class="r">Keys on average</th><th class="r">On this device</th></tr></thead>
+      <thead><tr><th>Address</th><th class="hide-m">Capitalization</th><th class="r">Keys on average</th><th class="r">{{#PAID}}On our server{{/PAID}}{{^PAID}}On this device{{/PAID}}</th></tr></thead>
       <tbody id="timesBody"></tbody>
     </table>
   </div>
-  <p class="tnote" id="timesNote">Speed is measured when the page loads.</p>
+  <p class="tnote" id="timesNote">{{#PAID}}Our server's speed loads with the page.{{/PAID}}{{^PAID}}Speed is measured when the page loads.{{/PAID}}</p>
 </section>
 
 <section class="sec" id="safe">
   <div class="split">
     <div>
-      <h2>Your key, made and checked on your device</h2>
+{{#PAID}}      <h2>Your key, sealed to you and checked by your browser</h2>
+      <p>Our server makes the keypair, locks it with a key that only your browser holds, and deletes its own copy. Nobody else can open the result, us included.</p>
+      <p>Your browser then re-derives the address from the key and refuses anything that does not match. Nothing is stored afterwards, so save your key before you close the tab.</p>
+{{/PAID}}{{^PAID}}      <h2>Your key, made and checked on your device</h2>
       <p>The keypair is created by your browser's built-in cryptography on your own hardware. Nothing is uploaded, and the page keeps working with your internet switched off.</p>
       <p>Fast mode is the one exception: our server makes the key, locks it with a key only your browser holds, and deletes its copy. For wallets that will hold real money, keep Fast mode off.</p>
+{{/PAID}}
     </div>
     <ul class="checks">
-      <li><span class="ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Every match from the graphics card is re-derived with WebCrypto before you see it.</li>
+      <li><span class="ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>{{#PAID}}Every key is re-derived with WebCrypto in your browser before you see it.{{/PAID}}{{^PAID}}Every match from the graphics card is re-derived with WebCrypto before you see it.{{/PAID}}</li>
       <li><span class="ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Fast mode results are opened in your browser and rejected if the key doesn't produce the promised address.</li>
       <li><span class="ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Nothing is stored. Close the tab and the key is gone, so save it first.</li>
     </ul>
@@ -595,7 +599,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
     <details><summary>How do I use the key?</summary><p>In Phantom or Solflare, choose Add wallet, then Import private key, and paste it. For the Solana CLI, use the downloaded keypair file. For a token, use the keypair as the mint when you create the token.</p></details>
     <details><summary>Why do some words take so much longer?</summary><p>Each character adds about 58 times more work, or 29 times with any capitalization. Solana addresses also almost always start with 2–9 or A–H, so other first characters are 25 to 60 times rarer again. Short words and uppercase starts are fastest.</p></details>
     <details><summary>Why does Token address end in pump?</summary><p>Many launchpads give token addresses a recognizable ending such as pump. The Token address tab fills that ending in and matches it exactly, so your mint looks native to the launchpad. You can change it.</p></details>
-    <details><summary>What does it cost?</summary><p id="faqCost">Searching on your own device is free. Fast mode uses <span class="srv">our cloud GPU</span> for longer words.</p></details>
+    <details><summary>What does it cost?</summary><p id="faqCost">{{#PAID}}Each address is paid in SOL from your own wallet before the search starts, and the price is shown before you pay.{{/PAID}}{{^PAID}}Searching on your own device is free. Fast mode uses <span class="srv">our cloud GPU</span> for longer words.{{/PAID}}</p></details>
     <details><summary>Can someone else get my key from the address?</summary><p>No. The address comes from the key in one direction only, so a nice-looking address gives nobody a shortcut to your key.</p></details>
   </div>
 </section>
@@ -616,14 +620,14 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
   <div class="fgrid">
     <div>
       <span class="logo" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 100 100"><rect x="6" y="14" width="88" height="72" rx="20" fill="#3BE3C3" stroke="#0B0C15" stroke-width="5"/><ellipse cx="36" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="39" cy="49" r="5.5" fill="#0B0C15"/><ellipse cx="64" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="67" cy="49" r="5.5" fill="#0B0C15"/><path d="M42 66 Q50 74 58 66" fill="none" stroke="#0B0C15" stroke-width="4.5" stroke-linecap="round"/></svg></span>
-      <p class="about">Vanity addresses for Solana, ground on your own graphics card.</p>
+      <p class="about">Vanity addresses for Solana, {{#PAID}}made for you and sealed to your browser.{{/PAID}}{{^PAID}}ground on your own graphics card.{{/PAID}}</p>
     </div>
     <div><h4>Make</h4><a href="#make" data-goto="wallet">Wallet address</a><a href="#make" data-goto="token">Token address</a><a href="addresses.html">My addresses</a></div>
     <div><h4>Learn</h4><a href="#how">How it works</a><a href="#times">How long it takes</a><a href="#faq">Questions</a></div>
     <div><h4>Trust</h4><a href="#safe">Is it safe?</a><a href="#safe">Where keys are made</a>{{SOURCE_LINK}}</div>
     <div><h4>Legal</h4><a href="legal.html#terms">Terms</a><a href="legal.html#privacy">Privacy</a><a href="legal.html#refunds">Refunds</a></div>
   </div>
-  <div class="fine"><span>© {{OPERATOR}}. Not affiliated with the Solana Foundation.</span><span>{{CONTACT_LINE}}</span><span>Keys are made on your device unless you turn on Fast mode.</span></div>
+  <div class="fine"><span>© {{OPERATOR}}. Not affiliated with the Solana Foundation.</span><span>{{CONTACT_LINE}}</span><span>{{#PAID}}Keys are made on our server and sealed to your browser.{{/PAID}}{{^PAID}}Keys are made on your device unless you turn on Fast mode.{{/PAID}}</span></div>
 </footer>
 </div>
 
@@ -818,14 +822,16 @@ async function serverInit(){
   WHERE.server = state.server.info && state.server.info.engine !== 'gpu' ? 'our server' : 'our cloud GPU';
   document.querySelectorAll('.srv').forEach(x => { x.textContent = 'cap' in x.dataset ? cap(WHERE.server) : WHERE.server; });
   const pay = state.server.info && state.server.info.pay;
-  if (pay) $('faqCost').textContent = `Searching on your own device is free. Fast mode on ${WHERE.server} costs from ${fmtSol(pay.priceSol)} SOL per search, a little more for longer words, paid from your Solana wallet before the search starts.`;
+  if (pay) $('faqCost').textContent = paidOnly()
+    ? `Each address costs from ${fmtSol(pay.priceSol)} SOL, a little more for longer words, paid from your Solana wallet before the search starts. You see the exact price before you pay.`
+    : `Searching on your own device is free. Fast mode on ${WHERE.server} costs from ${fmtSol(pay.priceSol)} SOL per search, a little more for longer words, paid from your Solana wallet before the search starts.`;
   if (state.server.status === 'ready' && state.wantFast) setFast(true);
   renderHeaderWallet(); reconnect();
   refresh();
   if (state.server.status === 'ready') resumeSavedJob();
 }
 setInterval(async () => {
-  if (state.server.status !== 'ready' || state.running || !state.fast) return;
+  if (state.server.status !== 'ready' || state.running || !(state.fast || paidOnly())) return;
   try { const r = await fetch('api/status', { cache: 'no-store' }); if (r.ok){ state.server.info = await r.json(); update(); } } catch {}
 }, 15000);
 
@@ -858,9 +864,9 @@ async function openSealed(j, key, a){
   return sk;
 }
 const SERVER_ERR = {
-  'too-slow': b => `This word would take about ${fmtWait(b.avgSeconds)} even in Fast mode. Remove a letter or two and try again.`,
-  'queue-full': () => 'Fast mode is busy right now. Try again in a few minutes.',
-  'one-at-a-time': () => 'You already have a Fast mode search running. Wait for it to finish or stop it first.',
+  'too-slow': b => `This word would take about ${fmtWait(b.avgSeconds)} ${paidOnly() ? 'on our server' : 'even in Fast mode'}. Remove a letter or two and try again.`,
+  'queue-full': () => `${paidOnly() ? 'Our server' : 'Fast mode'} is busy right now. Try again in a few minutes.`,
+  'one-at-a-time': () => `You already have a ${paidOnly() ? '' : 'Fast mode '}search running. Wait for it to finish or stop it first.`,
   'time-limit': () => 'The server stopped the search before finding a match. Shorten the word and try again.',
   'abandoned': () => 'The server stopped the search because this page stopped checking in.',
   'gone': () => 'The server no longer has this search. Start a new one.',
@@ -1104,8 +1110,10 @@ async function resumeSavedJob(){
 }
 
 /* ---------- engine choice ---------- */
+// With payments on, every search is paid and runs on the server (unless the server keeps device search on).
+const paidOnly = () => state.server.status === 'ready' && !!(state.server.info && state.server.info.paidOnly);
 function engine(){
-  if (state.fast && state.server.status === 'ready') return 'server';
+  if (paidOnly() || (state.fast && state.server.status === 'ready')) return 'server';
   // A weak or emulated graphics card can be slower than the processor: use whichever measured faster.
   if (state.gpu.status === 'ready') return deviceEngine();
   if (state.gpu.status === 'pending' && 'gpu' in navigator) return 'gpu';
@@ -1114,11 +1122,11 @@ function engine(){
 const engineReady = e => state[e].status === 'ready';
 function setFast(on){ state.fast = !!on; $('fast').setAttribute('aria-checked', String(state.fast)); refresh(); }
 function refresh(){
-  $('fast').hidden = state.server.status !== 'ready';
+  $('fast').hidden = state.server.status !== 'ready' || paidOnly();
   const e = engine();
   $('pill').textContent = e === 'server' ? 'Sealed delivery from our server' : 'Keys made on your device';
   let env = '';
-  if (e === 'cpu' && state.gpu.status === 'off' && state.cpu.status === 'ready'){
+  if (e === 'cpu' && state.gpu.status === 'off' && state.cpu.status === 'ready' && state.server.status !== 'pending'){
     env = 'Your browser isn’t sharing the graphics card, so this runs on your processor, which is much slower. The latest Chrome or Edge on a laptop or desktop can usually use the GPU.';
     if (state.cpu.workers.length < HC) env += ` Only ${state.cpu.workers.length} of ${HC} processor threads are available here, likely because the page is open inside a preview window.`;
   }
@@ -1231,7 +1239,7 @@ function update(){
 
   if (!err && avg > 3600 && !state.running){
     const per = state.anyCase ? 29 : 58;
-    if (tooSlowForServer) slow = `About <b>${fmtWait(avg)}</b> even in Fast mode, which is over its limit. Each extra letter makes a match about ${per}× rarer, so remove a letter or two.`;
+    if (tooSlowForServer) slow = `About <b>${fmtWait(avg)}</b> ${paidOnly() ? 'on our server' : 'even in Fast mode'}, which is over its limit. Each extra letter makes a match about ${per}× rarer, so remove a letter or two.`;
     else {
       slow = tooSlowHere
         ? `About <b>${fmtWait(avg)}</b> on ${WHERE[e]}, too long to search in a browser. Remove a letter or two${state.anyCase ? '' : ', or pick Any capitalization'}: each letter makes a match about ${per}× rarer.`
@@ -1296,7 +1304,7 @@ function paintPreview(){
 }
 
 function renderTimes(){
-  const rate = deviceRate();
+  const rate = paidOnly() ? engineRate('server') : deviceRate();
   const rows = [
     ['PUMP', 'pre', true, 'Any'], ['pump', 'suf', false, 'Exact'], ['Degen', 'pre', true, 'Any'],
     ['Moon', 'pre', false, 'Exact'], ['Ape|pump', 'both', true, 'Any'], ['Degen|pump', 'both', true, 'Any'],
@@ -1308,7 +1316,8 @@ function renderTimes(){
     const keys = 1 / a.p;
     return `<tr><td class="ca">${ca}</td><td class="hide-m">${capLabel}</td><td class="r">${fmtBig(keys)}</td><td class="r">${rate ? cap(fmtWait(keys / rate)) : '–'}</td></tr>`;
   }).join('');
-  $('timesNote').textContent = rate ? `Measured on this device: ${fmtBig(rate)} keys per second on ${deviceEngine() === 'gpu' ? 'your GPU' : 'your processor'}.` : 'Speed is measured when the page loads.';
+  $('timesNote').textContent = paidOnly() ? (rate ? `Our server checks ${fmtBig(rate)} keys per second.` : 'Our server\'s speed loads with the page.')
+    : rate ? `Measured on this device: ${fmtBig(rate)} keys per second on ${deviceEngine() === 'gpu' ? 'your GPU' : 'your processor'}.` : 'Speed is measured when the page loads.';
 }
 
 /* ---------- run ---------- */
@@ -1579,9 +1588,12 @@ window.addEventListener('beforeunload', e => { if (state.results.some(r => !r.sa
 })();
 state.placeholder = makePlaceholder();
 update(); renderTimes();
-const cpuReady = cpuInit().then(() => refresh());
-gpuInit(cpuReady);
-serverInit();
+// The device engines start only if the server does not require payment for every search.
+serverInit().then(() => {
+  if (paidOnly()) return;
+  const cpuReady = cpuInit().then(() => refresh());
+  gpuInit(cpuReady);
+});
 })();
 </script>
 </body>

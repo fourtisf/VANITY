@@ -89,8 +89,8 @@ await page.goto(base + '/', { waitUntil: 'load' });
 
 async function paidSearch(prefix, { blockReport = false } = {}) {
   if (await page.isVisible('.res')) await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('#fast:not([hidden])', { timeout: 30000 });
-  if (await page.getAttribute('#fast', 'aria-checked') !== 'true') await page.click('#fast');
+  // Payments on: every search is paid and runs on the server.
+  await page.waitForFunction(() => /our server/.test(document.querySelector('#pill').textContent), null, { timeout: 30000 });
   await page.fill('#pre', prefix);
   await page.waitForSelector('#go:not([disabled])', { timeout: 30000 });
   // Without the page's report the server has to find the payment through getSignaturesForAddress(reference).

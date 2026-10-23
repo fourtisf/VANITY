@@ -122,9 +122,11 @@ await page.click('#hdrMenu [data-m="disconnect"]');
 await page.waitForFunction(() => !document.querySelector('#hdrWallet').classList.contains('on'));
 console.log('header Connect wallet, connected address, disconnect: ok');
 
-/* ---- start a paid search ---- */
-await page.waitForSelector('#fast:not([hidden])', { timeout: 30000 });
-await page.click('#fast');
+/* ---- start a paid search: with payments on, every search is paid and runs on the server ---- */
+await page.waitForFunction(() => /our server/.test(document.querySelector('#pill').textContent), null, { timeout: 30000 }).catch(() => fail('paid site did not switch to the server'));
+check(await page.isHidden('#fast'), 'paid site still offers the free search on the device');
+check(/We find it for you/.test(await page.textContent('.hero p')) && /sealed to you/.test(await page.textContent('#safe h2')), 'paid site still promises keys made on the device');
+check(await page.evaluate(() => document.querySelector('#pill').textContent) && !(await page.content()).includes('{{'), 'paid page placeholders');
 await page.fill('#pre', 'A');
 await page.waitForFunction(() => /SOL$/.test(document.querySelector('#sCost').textContent), null, { timeout: 15000 }).catch(() => fail('cost does not show SOL'));
 check(/from 0\.01 SOL/.test(await page.textContent('#faqCost')), 'FAQ price missing');
@@ -221,8 +223,7 @@ const phone = await browser.newContext({ ...devices['iPhone 13'] });
 const mp = await phone.newPage();
 mp.on('pageerror', e => fail('phone page error: ' + e.message));
 await mp.goto(base + '/', { waitUntil: 'load' });
-await mp.waitForSelector('#fast:not([hidden])', { timeout: 30000 });
-await mp.click('#fast'); await mp.fill('#pre', 'Ab'); await mp.fill('#suf', 'x');
+await mp.fill('#pre', 'Ab'); await mp.fill('#suf', 'x');
 await mp.waitForSelector('#go:not([disabled])', { timeout: 30000 });
 await mp.click('#go');
 await mp.waitForSelector('#paybox:not([hidden])', { timeout: 15000 });
@@ -287,6 +288,7 @@ await fp.waitForSelector('#go:not([disabled])', { timeout: 30000 });
 await fp.click('#go');
 await fp.waitForSelector('.res', { timeout: 60000 }).catch(() => fail('free Fast mode gave no result'));
 check(await fp.isHidden('#paybox') && await fp.isVisible('.res [data-act="fund"]'), 'free mode: no pay box, Add SOL offered');
+check(/Your own graphics card finds it/.test(await fp.textContent('.hero p')), 'free site lost its on-device wording');
 freeServer.kill();
 console.log('free Fast mode: header wallet, no payment, Add SOL: ok');
 
@@ -294,6 +296,7 @@ console.log('free Fast mode: header wallet, no payment, Add SOL: ok');
 const legal = await browser.newPage();
 await legal.goto(base + '/legal.html#refunds', { waitUntil: 'load' });
 check((await legal.textContent('#refunds')).includes('help@vanity.example') && !(await legal.content()).includes('{{'), 'legal page not filled in');
+check((await legal.textContent('#terms')).includes('The search runs on our server') && !(await legal.content()).includes('On-device searches'), 'paid legal page still describes free on-device searches');
 console.log('legal page: ok');
 
 await browser.close(); server.kill(); rpc.close(); rmSync(PAID_JOBS_FILE, { force: true });

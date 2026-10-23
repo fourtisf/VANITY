@@ -128,7 +128,8 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `PAID_RESULT_TTL_SECONDS` | `86400` | The same for paid jobs |
 | `ABANDON_SECONDS` | `600` | Cancel jobs whose page stopped checking in |
 | `TRUST_PROXY` | `0` | Set `1` behind Nginx so per-IP limits use `X-Forwarded-For` |
-| `PAY_TO` | empty | Solana address that receives Fast mode payments. Empty keeps Fast mode free |
+| `PAY_TO` | empty | Solana address that receives payments. Empty keeps every search free. Set, every search is paid and runs on this server (see `DEVICE_SEARCH`) |
+| `DEVICE_SEARCH` | `off` | With `PAY_TO` set, `on` keeps the free search on the visitor's own device next to paid Fast mode. Without `PAY_TO` the device search is always on |
 | `PRICE_SOL` | `0.01` | Price of one Fast mode job |
 | `PRICE_SOL_PER_HOUR` | `0.1` | Added per hour of average search time on this server (prices round to 0.0001 SOL) |
 | `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
@@ -154,7 +155,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 
 ## Before a public launch
 
-- Fast mode is free until `PAY_TO` is set. With it, every job waits as `unpaid` until a Connect wallet payment of the price to `PAY_TO` confirms on chain (see "How payments work" in README.md). Ask the owner for the wallet address, prices, brand, contact, operator name and country; never make one up.
+- Fast mode is free until `PAY_TO` is set. With it, the page offers only paid searches on this server (no free device search unless `DEVICE_SEARCH=on`; its texts and the legal page switch to match), and every job waits as `unpaid` until a Connect wallet payment of the price to `PAY_TO` confirms on chain (see "How payments work" in README.md). Ask the owner for the wallet address, prices, brand, contact, operator name and country; never make one up.
 - `public/legal.html` is a template. The owner must have it reviewed before launch.
 - Test payments on devnet first: `SOLANA_CLUSTER=devnet`, a devnet wallet with faucet SOL, one real search. Then switch to mainnet with a paid RPC in `SOLANA_RPC`.
 - No automatic refunds. Paid jobs that fail are logged with payer and signature; grep the log for `hit the time limit` and `job failed`. The visitor sees the transaction and the contact.

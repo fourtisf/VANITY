@@ -415,7 +415,7 @@ const server = http.createServer(async (req, res) => {
     if (CFG.trustProxy && req.headers['x-forwarded-proto'] === 'https') res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     if (p === '/api/status' && req.method === 'GET') {
       const pay = CFG.payTo ? { to: CFG.payTo, priceSol: CFG.priceSol, priceSolPerHour: CFG.priceSolPerHour, chain: 'solana:' + CFG.cluster } : null;
-      return send(res, 200, { engine: engine.kind, device: engine.device, rate: Math.round(engine.rate), queue: queue.length + (current ? 1 : 0), maxExpectedSeconds: CFG.maxExpectedSec, maxTotal: VP.MAX_TOTAL, pay, chain: 'solana:' + CFG.cluster });
+      return send(res, 200, { engine: engine.kind, device: engine.device, rate: Math.round(engine.rate), queue: queue.length + (current ? 1 : 0), maxExpectedSeconds: CFG.maxExpectedSec, maxTotal: VP.MAX_TOTAL, pay, paidOnly: SITE.paidOnly, chain: 'solana:' + CFG.cluster });
     }
     // Visitors' wallets need a recent blockhash for any transfer the page builds (a payment, or SOL sent to a new address).
     if (p === '/api/blockhash' && req.method === 'GET') {
