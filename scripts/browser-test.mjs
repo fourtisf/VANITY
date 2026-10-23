@@ -251,7 +251,7 @@ await item.locator('[data-act="del"]').click();
 await mine.waitForSelector('#empty:not([hidden])', { timeout: 5000 }).catch(() => fail('Remove did not empty the list'));
 // Addresses made before: a downloaded keypair file (its key is checked against its address and backed up to the wallet),
 // a broken one, a downloaded list, and a pasted address.
-const kp = web3.Keypair.generate(), broken = Array.from(web3.Keypair.generate().secretKey), listed = key(), pasted = key();
+const kp = web3.Keypair.generate(), kp2 = web3.Keypair.generate(), broken = Array.from(web3.Keypair.generate().secretKey), listed = key(), pasted = kp2.publicKey.toBase58();
 broken[63] ^= 1;
 await mine.setInputFiles('#files', [
   { name: kp.publicKey.toBase58() + '.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(Array.from(kp.secretKey))) },
@@ -267,6 +267,18 @@ check(/Wallet/.test(await mine.textContent(`.item[data-addr="${listed}"]`)) && /
 await mine.fill('#paste', pasted); await mine.click('#pasteBtn');
 await mine.waitForSelector(`.item[data-addr="${pasted}"]`, { timeout: 5000 }).catch(() => fail('pasted address not added'));
 check(await mine.locator('.item').count() === 3, 'three addresses after adding');
+// An address without a backup takes the key saved when it was made: another address's key is refused, its own is backed up.
+const pItem = mine.locator(`.item[data-addr="${pasted}"]`);
+check(/No key backup/.test(await pItem.textContent()) && !(await pItem.locator('[data-act="key"]').count()), 'pasted address: ' + await pItem.textContent());
+await pItem.locator('[data-act="addKey"]').click();
+await pItem.locator('[data-keyin]').fill(VP.b58(kp.secretKey));
+await pItem.locator('[data-act="saveKey"]').click();
+await mine.waitForFunction(a => /belongs to another address/.test(document.querySelector(`.item[data-addr="${a}"]`).textContent), pasted, { timeout: 5000 })
+  .catch(async () => fail('a key of another address was taken: ' + await pItem.textContent()));
+await pItem.locator('[data-keyin]').fill(VP.b58(kp2.secretKey));
+await pItem.locator('[data-act="saveKey"]').click();
+await pItem.locator('[data-key]').waitFor({ timeout: 10000 }).catch(async () => fail('added key not shown: ' + await pItem.textContent()));
+check((await pItem.locator('[data-key]').textContent()).trim() === VP.b58(kp2.secretKey) && /Key backed up/.test(await pItem.textContent()), 'added key: ' + await pItem.textContent());
 // Another visit is empty again until the wallet signs in; then the list comes from the server, and the imported key opens.
 await mine.reload({ waitUntil: 'load' });
 await mine.waitForSelector('#gate:not([hidden])', { timeout: 10000 });
@@ -282,7 +294,7 @@ await mine.screenshot({ path: path.join(shots, 'my-addresses-added.png'), fullPa
 await mine.click('#outBtn');
 await mine.waitForSelector('#gate:not([hidden])', { timeout: 5000 });
 check(await mine.locator('.item').count() === 0, 'list still shown after disconnecting');
-console.log('My addresses: empty until the wallet signs in, its key backup opens, balances, remove, add from files, a list and a paste, signed out again: ok');
+console.log('My addresses: empty until the wallet signs in, its key backup opens, balances, remove, add from files, a list and a paste, a saved key added to an address, signed out again: ok');
 
 /* ---- a wallet that can only sign (Bitget's "[object Object]"): the server sends its signed payment ---- */
 const bp = await browser.newPage();

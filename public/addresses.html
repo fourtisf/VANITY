@@ -71,8 +71,8 @@ h2{font:700 24px var(--display);margin:0 0 6px}
 .add{margin-top:22px}
 .add p{color:var(--muted);margin:0 0 14px;font-size:15.5px}
 .addrow{display:flex;flex-wrap:wrap;gap:10px}
-.addrow input[type=text]{flex:1 1 260px;min-width:0;background:var(--well);border:1px solid var(--line2);color:var(--text);border-radius:12px;padding:8px 14px;font:500 15px var(--mono)}
-.addrow input[type=text]:focus{outline:none;border-color:var(--teal)}
+.addrow input[type=text],.addrow input[type=password]{flex:1 1 260px;min-width:0;background:var(--well);border:1px solid var(--line2);color:var(--text);border-radius:12px;padding:8px 14px;font:500 15px var(--mono)}
+.addrow input[type=text]:focus,.addrow input[type=password]:focus{outline:none;border-color:var(--teal)}
 .addmsg{margin:12px 0 0!important;color:var(--text)!important}
 .addmsg[hidden]{display:none}
 .fine{margin-top:30px;color:var(--dim);font-size:14.5px}
@@ -91,6 +91,8 @@ h2{font:700 24px var(--display);margin:0 0 6px}
 .kbox{margin-top:12px;padding:14px 16px;border-radius:14px;background:var(--well);border:1px solid rgba(255,196,125,.3)}
 .kval{font:500 14.5px/1.5 var(--mono);color:var(--text);word-break:break-all;user-select:all}
 .knote{margin:10px 0 0;color:var(--warn);font-size:14px}
+.kadd{border-color:var(--line2)}
+.kadd .knote{color:var(--muted)}
 .imsg{margin:10px 0 0;color:var(--warn);font-size:14.5px}
 @media (max-width:640px){ .item{padding:16px} #empty,.add{padding:20px 18px} .addr{font-size:15px} }
 </style>
@@ -124,6 +126,7 @@ h2{font:700 24px var(--display);margin:0 0 6px}
   </div>
   <p class="msg" id="msg" hidden></p>
   <div id="list"></div>
+  <input type="file" id="keyFile" accept=".json,application/json" hidden>
 
   <section id="empty" hidden>
     <h2>Nothing here yet</h2>
@@ -168,6 +171,7 @@ h2{font:700 24px var(--display);margin:0 0 6px}
   // walletMode: null until the server answers, then true where searches are paid. session: the signed-in wallet.
   let walletMode = null, session = null;
   const keys = new Map(), shown = new Set(), itemMsg = new Map();   // keys opened in this visit, shown ones, per-address notes
+  const adding = new Set();   // addresses with the Add key box open
 
   // The list on screen: the signed-in wallet's addresses on a paid site, else the ones made in this browser.
   function entries(){
@@ -208,15 +212,17 @@ h2{font:700 24px var(--display);margin:0 0 6px}
       const a = x.address, cut = v => Math.max(0, Math.min(a.length, v | 0)), pl = cut(x.pl), sl = cut(x.sl);
       const scan = `https://solscan.io/account/${a}${cluster === 'mainnet' ? '' : '?cluster=' + cluster}`;
       const made = isFinite(x.at) ? new Date(x.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
-      const tag = tagOf(x), open = shown.has(a) && keys.has(a), note = itemMsg.get(a);
+      const tag = tagOf(x), open = shown.has(a) && keys.has(a), note = itemMsg.get(a), add = wm && !x.vault && adding.has(a);
       const keyTag = wm ? (x.vault ? '<span class="tag ok">Key backed up</span>' : '<span class="tag warn">No key backup</span>')
         : x.keySaved === true ? '<span class="tag ok">Key saved</span>' : x.keySaved === false ? '<span class="tag warn">Key not saved</span>' : '';
       return `<article class="item" data-addr="${a}">
         <div class="addr"><span class="p">${a.slice(0, pl)}</span>${a.slice(pl, a.length - sl)}<span class="s">${a.slice(a.length - sl)}</span></div>
         <div class="meta">${tag ? `<span class="tag">${tag}</span>` : ''}${keyTag}${made ? `<span>${x.source === 'manual' ? 'Added' : 'Made'} ${made}</span>` : ''}${balances && a in balances ? `<span class="bal">${sol(balances[a])} SOL</span>` : ''}</div>
-        <div class="acts"><button type="button" class="btn" data-act="copy">Copy address</button>${wm && x.vault ? `<button type="button" class="btn" data-act="key">${open ? 'Hide private key' : 'Show private key'}</button>` : ''}<a class="btn" href="${scan}" target="_blank" rel="noopener">Solscan</a><button type="button" class="btn danger" data-act="del">Remove</button></div>
+        <div class="acts"><button type="button" class="btn" data-act="copy">Copy address</button>${wm && x.vault ? `<button type="button" class="btn" data-act="key">${open ? 'Hide private key' : 'Show private key'}</button>` : ''}${wm && !x.vault ? `<button type="button" class="btn" data-act="addKey">${add ? 'Cancel' : 'Add key'}</button>` : ''}<a class="btn" href="${scan}" target="_blank" rel="noopener">Solscan</a><button type="button" class="btn danger" data-act="del">Remove</button></div>
         ${open ? `<div class="kbox"><div class="kval" data-key>${b58(keys.get(a))}</div><div class="acts"><button type="button" class="btn" data-act="copyKey">Copy key</button><button type="button" class="btn" data-act="dl">Download keypair</button></div>
           <p class="knote">Anyone with this key controls the ${x.mode === 'token' ? 'mint' : 'wallet'}. Never share it, and never paste it into a site you do not trust.</p></div>` : ''}
+        ${add ? `<div class="kbox kadd"><div class="addrow"><input type="password" data-keyin placeholder="Paste its private key" autocomplete="off" spellcheck="false" aria-label="Private key of this address"><button type="button" class="btn" data-act="saveKey">Save key</button><button type="button" class="btn" data-act="keyFile">Choose keypair file</button></div>
+          <p class="knote">Add the key you copied or downloaded when you made this address. It is checked against the address and locked to this wallet here, so our server only gets a copy it cannot open.</p></div>` : ''}
         ${note ? `<p class="imsg">${esc(note)}</p>` : ''}
       </article>`;
     }).join('');
@@ -229,6 +235,15 @@ h2{font:700 24px var(--display);margin:0 0 6px}
     const act = b.dataset.act;
     if (act === 'copy') navigator.clipboard.writeText(a).then(() => flash(b, 'Copied'), () => {});
     if (act === 'key'){ if (shown.has(a)){ shown.delete(a); render(); } else showKey(x, b); }
+    if (act === 'addKey'){ if (adding.has(a)) adding.delete(a); else adding.add(a); itemMsg.delete(a); render(); }
+    if (act === 'saveKey'){
+      const v = b.closest('.item').querySelector('[data-keyin]').value.trim();
+      if (!v){ itemMsg.set(a, 'Paste the private key first, or choose its keypair file.'); return render(); }
+      let arr;
+      try { arr = v.startsWith('[') ? JSON.parse(v) : b58dec(v); } catch { arr = null; }
+      saveKey(a, arr, b);
+    }
+    if (act === 'keyFile'){ keyTarget = a; $('keyFile').click(); }
     if (act === 'copyKey') navigator.clipboard.writeText(b58(keys.get(a))).then(() => flash(b, 'Copied'), () => {});
     if (act === 'dl'){
       const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([JSON.stringify(Array.from(keys.get(a)))], { type: 'application/json' }));
@@ -251,7 +266,7 @@ h2{font:700 24px var(--display);margin:0 0 6px}
       } catch (err) { b.disabled = false; signedOutOr(err, () => { itemMsg.set(a, `Could not remove it: ${errText(err)}.`); render(); }); }
     }
   });
-  const forget = a => { const k = keys.get(a); if (k) k.fill(0); keys.delete(a); shown.delete(a); itemMsg.delete(a); };
+  const forget = a => { const k = keys.get(a); if (k) k.fill(0); keys.delete(a); shown.delete(a); itemMsg.delete(a); adding.delete(a); };
   $('clearBtn').addEventListener('click', () => {
     const n = load().length;
     if (confirm(`Remove all ${n} ${n === 1 ? 'address' : 'addresses'} from this list? Your wallets are not affected.`)){ try { localStorage.removeItem(KEY); } catch {} balances = null; render(); }
@@ -337,6 +352,41 @@ h2{font:700 24px var(--display);margin:0 0 6px}
     }
     render();
   }
+
+  // A key the visitor saved when the address was made (base58 as copied, or a keypair file), added to an address
+  // that has no backup: checked against the address, locked to the wallet, and shown.
+  let keyTarget = null;
+  function b58dec(s){
+    let n = 0n;
+    for (const c of s){ const d = ALPH.indexOf(c); if (d < 0) return null; n = n * 58n + BigInt(d); }
+    const out = []; while (n){ out.unshift(Number(n & 255n)); n >>= 8n; }
+    for (const c of s){ if (c !== '1') break; out.unshift(0); }
+    return out;
+  }
+  async function saveKey(a, arr, b){
+    let kp;
+    try { kp = await keypairOf(arr); }
+    catch (e) { itemMsg.set(a, `That is not a private key${e && e.message && e.message !== 'not a keypair file' ? ` (${e.message})` : ''}. Paste the key as you copied it, or choose the keypair file you downloaded.`); return render(); }
+    if (kp.address !== a){ kp.sk.fill(0); itemMsg.set(a, `That key belongs to another address, ${short(kp.address)}.`); return render(); }
+    if (b){ b.disabled = true; b.textContent = `Sign in ${session.w.name}…`; }
+    try {
+      const out = await addToWallet([{ address: a, vault: await lock(a, kp.sk) }]);
+      if (out.failed.length || !out.keys) throw new Error(out.failed[0] || 'the server did not keep it');
+      keys.set(a, kp.sk); shown.add(a); adding.delete(a); itemMsg.delete(a);
+    } catch (e) {
+      kp.sk.fill(0);
+      signedOutOr(e, () => itemMsg.set(a, cancelled(e) ? 'You cancelled it in your wallet.' : `Could not back up the key: ${errText(e)}.`));
+    }
+    render();
+  }
+  $('keyFile').addEventListener('change', async e => {
+    const f = e.target.files[0], a = keyTarget;
+    e.target.value = '';
+    if (!f || !a || !session) return;
+    let arr = null;
+    try { arr = JSON.parse(await f.text()); } catch {}
+    saveKey(a, arr);
+  });
 
   /* ---- adding addresses made before ---- */
   // Adds entries not in the local list yet and keeps it newest first. Returns how many were new.
@@ -478,7 +528,7 @@ h2{font:700 24px var(--display);margin:0 0 6px}
   function signOut(){
     const s = session; session = null;
     for (const a of [...keys.keys()]) forget(a);
-    itemMsg.clear(); balances = null; addMsg(''); connectBtn(); render();
+    itemMsg.clear(); adding.clear(); balances = null; addMsg(''); connectBtn(); render();
     try { if (s && s.w.features['standard:disconnect']) s.w.features['standard:disconnect'].disconnect(); } catch {}
   }
   $('outBtn').addEventListener('click', () => { signOut(); wmsg(''); });
