@@ -826,7 +826,7 @@ async function serverInit(){
     ? `Each address costs from ${fmtSol(pay.priceSol)} SOL, a little more for longer words, paid from your Solana wallet before the search starts. You see the exact price before you pay.`
     : `Searching on your own device is free. Fast mode on ${WHERE.server} costs from ${fmtSol(pay.priceSol)} SOL per search, a little more for longer words, paid from your Solana wallet before the search starts.`;
   if (state.server.status === 'ready' && state.wantFast) setFast(true);
-  renderHeaderWallet(); reconnect();
+  renderHeaderWallet();
   refresh();
   if (state.server.status === 'ready') resumeSavedJob();
 }
@@ -892,7 +892,6 @@ const wallets = [];
 function registerWallets(...ws){
   for (const w of ws) if (w && w.features && w.features['standard:connect'] && w.features['solana:signAndSendTransaction'] && !wallets.includes(w)) wallets.push(w);
   if ($('walletDlg').open) renderWallets();
-  reconnect();
   if (state.pay) renderPay();
   return () => {};
 }
@@ -977,8 +976,8 @@ function toast(t){ const el = $('toast'); el.textContent = t; el.hidden = false;
 const fastLink = () => location.origin + location.pathname + '#fast=' + encodeURIComponent(JSON.stringify({ p: cleanVal('pre'), s: cleanVal('suf'), c: state.anyCase, m: state.mode }));
 
 function renderWallets(){
-  const found = usable(chainId()), rows = [];
-  found.forEach((w, i) => rows.push(`<button type="button" class="wrow" data-w="${i}"><img src="${esc(w.icon)}" alt=""><span>${esc(w.name)}</span><em class="ok">Detected</em></button>`));
+  const last = lastWallet(), found = usable(chainId()).sort((a, b) => (b.name === last) - (a.name === last)), rows = [];
+  found.forEach((w, i) => rows.push(`<button type="button" class="wrow" data-w="${i}"><img src="${esc(w.icon)}" alt=""><span>${esc(w.name)}</span><em class="ok">${w.name === last ? 'Last used' : 'Detected'}</em></button>`));
   for (const k of KNOWN){
     if (found.some(w => w.name.toLowerCase().startsWith(k.name.toLowerCase()))) continue;
     const inApp = MOBILE && k.open;
@@ -1031,19 +1030,8 @@ function tickPay(){
   if (left <= 0 && !$('payBtn').disabled && !state.job.paySig){ $('payBtn').disabled = true; payMsg('The payment window closed, so nothing can be paid for this search. Press Stop and start again.'); }
 }
 
-// Reconnects the wallet used last time without a prompt, when that wallet allows it.
-async function reconnect(){
-  if (state.wallet || state.reconnecting) return;
-  let name = null; try { name = localStorage.getItem('vanity.wallet'); } catch {}
-  const chain = chainId(), w = name && usable(chain).find(x => x.name === name);
-  if (!w) return;
-  state.reconnecting = true;
-  try {
-    const { accounts } = await w.features['standard:connect'].connect({ silent: true });
-    const account = accounts && accounts.length && pickAccount(accounts, chain);
-    if (account && !state.wallet) setWallet({ w, account });
-  } catch {} finally { state.reconnecting = false; }
-}
+// A wallet connects only when the visitor picks it. The one used last is only listed first, never connected by itself.
+const lastWallet = () => { try { return localStorage.getItem('vanity.wallet'); } catch { return null; } };
 async function connectWallet(w){
   $('walletDlg').close();
   const chain = chainId(), next = state.afterConnect;
@@ -1135,7 +1123,7 @@ async function runServer(id, a, saved){
         state.payDeadline = Date.now() + state.pay.expiresIn * 1000;
         if (job.paySig && !job.reported) reportPayment(job);
       }
-      if (hadPay !== !!state.pay){ renderPay(); reconnect(); }
+      if (hadPay !== !!state.pay) renderPay();
       if (j.status === 'done'){
         const secret = await openSealed(j, job.key, a);
         job.done = true; idbDel(job.id);

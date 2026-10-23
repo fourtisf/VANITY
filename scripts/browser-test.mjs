@@ -101,7 +101,7 @@ const fakeWallet = (name, address, pub) => {
   const wallet = {
     version: '1.0.0', name, icon, chains: ['solana:mainnet', 'solana:devnet'], accounts: [],
     features: {
-      'standard:connect': { version: '1.0.0', connect: async ({ silent } = {}) => ({ accounts: silent ? [] : [account] }) },
+      'standard:connect': { version: '1.0.0', connect: async ({ silent } = {}) => { window.__connects = (window.__connects || 0) + 1; return { accounts: silent ? [] : [account] }; } },
       'solana:signAndSendTransaction': { version: '1.0.0', supportedTransactionVersions: ['legacy', 0],
         signAndSendTransaction: async ({ transaction, chain }) => [{ signature: new Uint8Array(await window.__sendTx(Array.from(transaction), chain)) }] },
     },
@@ -139,10 +139,21 @@ await page.click('#walletList .wrow:has-text("Late Wallet")');
 await page.waitForFunction(() => document.querySelector('#hdrWallet').classList.contains('on'), null, { timeout: 10000 }).catch(() => fail('header did not show the connected wallet'));
 check((await page.textContent('#hdrWallet')).includes('…'), 'header shows the short address');
 await page.screenshot({ path: path.join(shots, 'header-connected.png'), clip: { x: 0, y: 0, width: 1280, height: 90 } });
+// Opening the site again never connects a wallet by itself: the last one is only listed first.
+await page.reload({ waitUntil: 'load' });
+await page.evaluate(walletArgs('Late Wallet'));
+await page.waitForSelector('#hdrWallet:not([hidden])', { timeout: 30000 });
+await page.waitForTimeout(1500);
+check(!(await page.evaluate(() => window.__connects)) && /Connect wallet/.test(await page.textContent('#hdrWallet')), 'a wallet connected without being clicked');
+await page.click('#hdrWallet');
+await page.waitForSelector('#walletDlg[open]');
+check(await page.$eval('#walletList .wrow', e => `${e.querySelector('span').textContent}:${e.querySelector('em').textContent}`) === 'Late Wallet:Last used', 'last wallet not listed first');
+await page.click('#walletList .wrow:has-text("Late Wallet")');
+await page.waitForFunction(() => document.querySelector('#hdrWallet').classList.contains('on'), null, { timeout: 10000 }).catch(() => fail('reconnecting by click failed'));
 await page.click('#hdrWallet');
 await page.click('#hdrMenu [data-m="disconnect"]');
 await page.waitForFunction(() => !document.querySelector('#hdrWallet').classList.contains('on'));
-console.log('header Connect wallet, connected address, disconnect: ok');
+console.log('header Connect wallet, connected address, no connection without a click, disconnect: ok');
 
 /* ---- start a paid search: with payments on, every search is paid and runs on the server ---- */
 await page.waitForFunction(() => /our server/.test(document.querySelector('#pill').textContent), null, { timeout: 30000 }).catch(() => fail('paid site did not switch to the server'));
