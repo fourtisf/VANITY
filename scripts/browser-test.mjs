@@ -230,6 +230,11 @@ const quick = await fp.inputValue('#pre');
 check(quick && quick.length < 8 && 'pumppump'.startsWith(quick), `quicker word: ${quick}`);
 await fp.waitForSelector('#go:not([disabled])', { timeout: 5000 }).catch(() => fail('the quicker word cannot be started'));
 await fp.fill('#pre', '');
+// Ideas: words that look rare but are quick; one click fills them in.
+await fp.click('#ideas button[data-pre="CHAD"]', { timeout: 5000 }).catch(() => fail('no quick ideas shown'));
+check(await fp.inputValue('#pre') === 'CHAD' && await fp.isHidden('#ideas button[data-pre="CHAD"]'), 'idea not filled in');
+await fp.waitForSelector('#go:not([disabled])', { timeout: 5000 }).catch(() => fail('the idea cannot be started'));
+await fp.fill('#pre', '');
 await fp.waitForSelector('#fast:not([hidden])', { timeout: 30000 });
 await fp.click('#fast'); await fp.fill('#pre', 'A');
 await fp.waitForSelector('#go:not([disabled])', { timeout: 30000 });

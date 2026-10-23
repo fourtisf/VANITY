@@ -131,9 +131,13 @@ h1{margin:18px auto 14px;font:700 clamp(40px,7vw,76px)/.98 var(--display);letter
 .note b{font-weight:800}
 .note[hidden]{display:none}
 .note .try{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;color:var(--text)}
-.note .try button{font:700 15px var(--mono);color:var(--teal);background:var(--well);border:1px solid var(--line);border-radius:12px;padding:7px 12px;cursor:pointer}
-.note .try button:hover{border-color:var(--teal)}
-.note .try button i{font:700 13px var(--sans);font-style:normal;color:var(--muted);margin-left:4px}
+.note .try button,.ideas button{font:700 15px var(--mono);color:var(--teal);background:var(--well);border:1px solid var(--line);border-radius:12px;padding:7px 12px;cursor:pointer}
+.note .try button:hover,.ideas button:hover{border-color:var(--teal)}
+.note .try button i,.ideas button i{font:700 13px var(--sans);font-style:normal;color:var(--muted);margin-left:4px}
+.ideas{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 4px 0}
+.ideas[hidden],.ideas button[hidden]{display:none}
+.ideas .lbl{font-size:15px;color:var(--dim);margin-right:2px}
+.ideas button{font-size:14px;padding:6px 11px}
 
 .choices{display:grid;gap:12px;margin-top:22px}
 .choice,.switchrow{display:flex;align-items:center;gap:18px;width:100%;text-align:left;padding:20px 22px;border-radius:20px;border:1.5px solid var(--line);background:var(--well2);transition:border-color .2s,background .2s,box-shadow .2s}
@@ -438,6 +442,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       </label>
     </div>
     <div class="hint"><span><b>#</b> for any number, <b>*</b> for any letter</span><span>No 0, O, I or l</span></div>
+    <div class="ideas" id="ideas" hidden><span class="lbl">Look rare, found fast:</span></div>
 
     <div class="preview">
       <span class="paddr" id="paddr" aria-label="Address preview"></span>
@@ -1132,6 +1137,10 @@ function engineRate(e){
   return state.cpu.perThread * state.cpu.workers.length;
 }
 const cleanVal = id => $(id).value.replace(/\s+/g, '');
+// Words that look rare in an address but are found in seconds to minutes: short, and starting with the
+// letters and digits most addresses start with.
+const IDEAS = [['8888', ''], ['DEGEN', ''], ['HODL', ''], ['GOAT', ''], ['CHAD', ''], ['', 'pump'], ['', '777'], ['69', '69']];
+$('ideas').insertAdjacentHTML('beforeend', IDEAS.map(([p, s]) => `<button type="button" data-pre="${p}" data-suf="${s}">${p}…${s} <i></i></button>`).join(''));
 // Shorter versions of the word that finish within 10 minutes at this rate: keep as many letters as possible,
 // whole parts first, then the quickest. Returns up to two.
 function quicker(a, rate){
@@ -1201,6 +1210,16 @@ function update(){
       }
     }
   }
+  // Ideas are for wallet addresses (a token's exact pump ending makes each one slow), and only those this
+  // engine finds within 10 minutes.
+  let ideas = 0;
+  $('ideas').querySelectorAll('button').forEach(b => {
+    const t = 1 / (VP.analyze(b.dataset.pre, b.dataset.suf, state.anyCase).p * rate);
+    const show = state.mode === 'wallet' && !state.running && (!rate || t <= 600) && !(b.dataset.pre === a.preRaw && b.dataset.suf === a.sufRaw);
+    b.hidden = !show; ideas += show;
+    b.lastChild.textContent = rate ? fmtWait(t) : '';
+  });
+  $('ideas').hidden = !ideas;
   if (slow && rate){
     const q = quicker(a, rate);
     if (q.length) slow += `<span class="try">Quicker: ${q.map(x => `<button type="button" data-pre="${esc(x.pre)}" data-suf="${esc(x.suf)}">${esc(x.pre)}…${esc(x.suf)} <i>${fmtWait(x.avg)}</i></button>`).join('')}</span>`;
@@ -1263,7 +1282,7 @@ function start(saved){
   const c = $('card'); c.classList.remove('found'); c.classList.add('running');
   $('make').classList.remove('happy'); $('make').classList.add('working');
   $('goText').textContent = 'Stop'; $('go').classList.add('stop'); $('go').disabled = false;
-  $('runbox').hidden = e === 'server' && !!(state.server.info && state.server.info.pay); lock(true);
+  $('runbox').hidden = e === 'server' && !!(state.server.info && state.server.info.pay); lock(true); $('ideas').hidden = true;
   $('statusText').textContent = e === 'server' ? `Sending to ${WHERE.server}` : `Searching on ${WHERE[e]}`;
   if (e === 'gpu') runGpu(id, a);
   else if (e === 'cpu') state.cpu.workers.forEach(w => w.postMessage({ type: 'start', runId: id, pre: a.pre.sets, suf: a.suf.sets }));
@@ -1444,10 +1463,12 @@ function setMode(mode, keepFields){
 document.querySelectorAll('[data-case]').forEach(b => b.addEventListener('click', () => setCase(b.dataset.case === 'any')));
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
 $('fast').addEventListener('click', () => setFast(!state.fast));
-$('slow').addEventListener('click', e => {
-  const b = e.target.closest('button[data-pre]'); if (!b) return;
+const useWord = e => {
+  const b = e.target.closest('button[data-pre]'); if (!b || state.running) return;
   $('pre').value = b.dataset.pre; $('suf').value = b.dataset.suf; clearFound(); update();
-});
+};
+$('slow').addEventListener('click', useWord);
+$('ideas').addEventListener('click', useWord);
 $('payBtn').addEventListener('click', () => state.wallet ? pay() : openWallets(pay));
 $('payChange').addEventListener('click', () => openWallets(null));
 $('hdrWallet').addEventListener('click', e => { e.stopPropagation(); if (state.wallet) $('hdrMenu').hidden = !$('hdrMenu').hidden; else openWallets(null); });
