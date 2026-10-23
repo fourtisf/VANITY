@@ -13,6 +13,9 @@ export function siteConfig(env = process.env) {
     operator: get('OPERATOR_NAME', name),
     jurisdiction: get('JURISDICTION'),
     source: get('SOURCE_URL'),
+    // The project's X account (X_URL=off hides it) and the token's contract address, shown as "Coming soon" until set.
+    x: /^off$/i.test(get('X_URL', 'https://x.com/platesfun')) ? '' : get('X_URL', 'https://x.com/platesfun'),
+    ca: get('TOKEN_CA'),
     // With payments on, every search is paid and runs on the server, unless DEVICE_SEARCH=on keeps the free
     // search on the visitor's own device.
     paidOnly: !!get('PAY_TO') && get('DEVICE_SEARCH').toLowerCase() !== 'on',
@@ -22,8 +25,13 @@ export function siteConfig(env = process.env) {
 export const hasContact = site => !!(site.email || site.telegram);
 
 export function renderPage(html, site, origin = '') {
-  // {{#PAID}}…{{/PAID}} is kept only when every search is paid, {{^PAID}}…{{/PAID}} only when it is not.
-  html = html.replace(/\{\{([#^])PAID\}\}([\s\S]*?)\{\{\/PAID\}\}/g, (m, k, body) => ((k === '#') === !!site.paidOnly ? body : ''));
+  // {{#PAID}}…{{/PAID}} is kept only when every search is paid, {{^PAID}}…{{/PAID}} only when it is not; X (an X
+  // account is set) and CA (a token address is set) work the same way.
+  const flags = { PAID: !!site.paidOnly, X: !!site.x, CA: !!site.ca };
+  for (let prev; prev !== html;) {
+    prev = html;
+    html = html.replace(/\{\{([#^])(PAID|X|CA)\}\}([\s\S]*?)\{\{\/\2\}\}/g, (m, k, f, body) => ((k === '#') === flags[f] ? body : ''));
+  }
   const contact = [
     site.email && `<a href="mailto:${esc(site.email)}" data-contact>${esc(site.email)}</a>`,
     site.telegram && `<a href="https://t.me/${esc(site.telegram)}" target="_blank" rel="noopener"${site.email ? '' : ' data-contact'}>Telegram @${esc(site.telegram)}</a>`,
@@ -36,6 +44,9 @@ export function renderPage(html, site, origin = '') {
     CONTACT: contact || 'the contact details shown on this site',
     CONTACT_LINE: contact ? `Contact: ${contact}` : '',
     SOURCE_LINK: site.source ? `<a href="${esc(site.source)}" target="_blank" rel="noopener">Source code</a>` : '',
+    X_URL: esc(site.x),
+    X_HANDLE: esc('@' + (String(site.x).replace(/[?#].*$/, '').split('/').filter(Boolean).pop() || '')),
+    CA: esc(site.ca),
   };
   return html.replace(/\{\{([A-Z_]+)\}\}/g, (m, k) => (k in vars ? vars[k] : m));
 }

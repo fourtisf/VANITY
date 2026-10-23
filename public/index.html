@@ -323,13 +323,46 @@ tbody tr:hover{background:rgba(255,255,255,.015)}
 .mini input:focus{outline:none;border-color:var(--teal)}
 .mini button{height:60px;padding:0 26px;border:0;border-radius:16px;background:linear-gradient(180deg,#63F2D6,#22C3A4);color:var(--teal-ink);font:700 19px var(--display);box-shadow:0 14px 34px -14px rgba(59,227,195,.85)}
 footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1px solid var(--line)}
-.fgrid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;gap:28px}
+.fgrid{display:grid;grid-template-columns:1.4fr repeat(5,1fr);gap:28px}
 .fgrid h4{margin:0 0 12px;font:600 14px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .fgrid a{display:block;text-decoration:none;color:var(--dim);margin:7px 0;font-size:15.5px}
 .fgrid a:hover{color:var(--text)}
 .fgrid .about{color:var(--muted);font-size:15.5px;max-width:30ch;margin-top:14px}
 .fine a{color:var(--muted)}
 .fine{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;margin-top:36px;padding-top:22px;border-top:1px solid var(--line);color:var(--dim);font-size:14px}
+
+/* ---------- premium layer: X, token address, eyebrows, rims ---------- */
+body{background:radial-gradient(900px 520px at 88% 6%,rgba(59,227,195,.07),transparent 62%),radial-gradient(800px 600px at 6% 40%,rgba(91,69,201,.08),transparent 60%),var(--bg)}
+.bgfx{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E")}
+h1{max-width:none}
+h1 .accent{display:block;background:linear-gradient(92deg,#7DF5DD 0%,#B9A9FF 55%,#8F72FF 100%);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.06em}
+.xbtn{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:13px;border:1px solid var(--line2);background:linear-gradient(180deg,#1B1838,#121027);color:var(--text);text-decoration:none;transition:border-color .2s,transform .2s var(--ease)}
+.xbtn:hover{border-color:var(--teal);transform:translateY(-1px)}
+.tokenbar{display:inline-flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin-top:26px;padding:8px;border-radius:18px;
+  background:linear-gradient(180deg,rgba(27,24,56,.75),rgba(18,16,39,.75));border:1px solid var(--line2);box-shadow:0 18px 50px -24px rgba(91,69,201,.7),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.tokenbar .ca{display:inline-flex;align-items:center;gap:10px;min-width:0;padding:4px 6px 4px 4px}
+.tokenbar .ca em{font:700 12.5px var(--display);font-style:normal;letter-spacing:.16em;color:var(--teal-ink);background:linear-gradient(180deg,#63F2D6,#22C3A4);padding:5px 10px;border-radius:9px}
+.tokenbar code{font:600 15px var(--mono);color:var(--text);word-break:break-all;text-align:left}
+.tokenbar code.soon{display:inline-flex;align-items:center;gap:8px;color:#D9D0FF;letter-spacing:.02em}
+.tokenbar code.soon i{width:7px;height:7px;border-radius:50%;background:var(--warn);box-shadow:0 0 10px var(--warn);animation:bulb 1.8s ease-in-out infinite}
+.cacopy{border:1px solid var(--line2);background:var(--well);color:var(--text);border-radius:10px;padding:6px 12px;font:600 13.5px var(--display)}
+.cacopy:hover{border-color:var(--teal)}
+.xfollow{display:inline-flex;align-items:center;gap:9px;padding:9px 14px;border-radius:12px;text-decoration:none;color:var(--text);font:600 15px var(--display);background:rgba(255,255,255,.04);border:1px solid var(--line);transition:border-color .2s,background .2s}
+.xfollow:hover{border-color:var(--teal);background:var(--teal-wash)}
+.eyebrow{display:block;margin:0 0 12px;text-align:center;font:700 13px var(--display);letter-spacing:.24em;text-transform:uppercase;color:var(--teal)}
+.split .eyebrow{text-align:left}
+@property --ang{syntax:"<angle>";inherits:false;initial-value:0deg}
+.card::before{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1.5px;pointer-events:none;
+  background:conic-gradient(from var(--ang),transparent 0deg,rgba(59,227,195,.85) 50deg,rgba(143,114,255,.85) 110deg,transparent 170deg,transparent 360deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spinrim 9s linear infinite}
+@keyframes spinrim{to{--ang:360deg}}
+.feat,.steps li,.checks li{transition:transform .25s var(--ease),border-color .25s,box-shadow .25s}
+.feat:hover,.steps li:hover{transform:translateY(-4px);border-color:var(--rim);box-shadow:0 30px 70px -40px rgba(91,69,201,.9)}
+.feat::after{content:"";position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,rgba(196,180,255,.5),transparent)}
+.cta .box::after{content:"";position:absolute;left:15%;right:15%;top:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(108,242,216,.9),transparent)}
+.fgrid .fx{display:flex;align-items:center;gap:8px}
+.fgrid .fca{display:block;margin:7px 0;color:var(--dim);font-size:15.5px}
+.fgrid .fca code{font:500 13px var(--mono);color:var(--muted);word-break:break-all}
 
 /* Narrower desktops keep the main links; the others are in the footer. */
 @media (max-width:1120px){ .nav a[href="#times"],.nav a[href="#faq"]{display:none} }
@@ -341,6 +374,10 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
   .fgrid{grid-template-columns:1fr 1fr}
 }
 @media (max-width:640px){
+  .xbtn{width:40px;height:40px;border-radius:12px}
+  .top .in{gap:12px}
+  .tokenbar{display:flex;margin-top:22px}
+  .tokenbar .ca,.xfollow{flex:1 1 auto;justify-content:center}
   .pill span{display:none}
   .top .pill{display:none}
   .wbtn{height:40px;padding:0 13px;font-size:14.5px}
@@ -391,6 +428,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <a href="addresses" target="_blank">My addresses</a>
     </nav>
     <span class="sp"></span>
+    {{#X}}<a class="xbtn" href="{{X_URL}}" target="_blank" rel="noopener" aria-label="{{SITE_NAME}} on X" title="{{X_HANDLE}} on X"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>{{/X}}
     <span class="pill">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
       <span id="pill">{{#PAID}}Sealed delivery from our server{{/PAID}}{{^PAID}}Keys made on your device{{/PAID}}</span>
@@ -408,8 +446,12 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
 
 <section class="hero">
   <span class="kick"><i></i>Solana vanity addresses</span>
-  <h1>Put your word in your address.</h1>
+  <h1>Put your word <span class="accent">in your address.</span></h1>
   <p>A Solana wallet or token address that starts or ends the way you want. {{#PAID}}We find it for you and seal the key so only your browser can open it.{{/PAID}}{{^PAID}}Your own graphics card finds it, and the key never leaves your device.{{/PAID}}</p>
+  <div class="tokenbar">
+    <span class="ca"><em>CA</em>{{#CA}}<code>{{CA}}</code><button type="button" class="cacopy" data-copy="{{CA}}">Copy</button>{{/CA}}{{^CA}}<code class="soon"><i></i>Coming soon</code>{{/CA}}</span>
+    {{#X}}<a class="xfollow" href="{{X_URL}}" target="_blank" rel="noopener"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg><span>Follow {{X_HANDLE}}</span></a>{{/X}}
+  </div>
 </section>
 
 <section class="stage" id="make" aria-label="Make an address">
@@ -532,6 +574,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
 <section class="results" id="results" aria-live="polite"></section>
 
 <section class="sec" id="what">
+  <span class="eyebrow">What you get</span>
   <h2>Two kinds of addresses</h2>
   <p class="lead">Your word in a wallet people send to, or in the token address people paste into every chart.</p>
   <div class="duo">
@@ -551,6 +594,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
 </section>
 
 <section class="sec" id="how">
+  <span class="eyebrow">How it works</span>
   <h2>From word to working key</h2>
   <p class="lead">No account and no download. {{#PAID}}Pay from your wallet, and the key comes back sealed to this tab.{{/PAID}}{{^PAID}}Everything happens in this tab.{{/PAID}}</p>
   <ol class="steps">
@@ -562,6 +606,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
 </section>
 
 <section class="sec" id="times">
+  <span class="eyebrow">Speed</span>
   <h2>How long does it take?</h2>
   <p class="lead">Each extra character makes a match about 58 times rarer, or 29 times with any capitalization. {{#PAID}}Times use the current speed of our server.{{/PAID}}{{^PAID}}Times use the speed measured on this device.{{/PAID}}</p>
   <div class="tablewrap">
@@ -576,6 +621,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
 <section class="sec" id="safe">
   <div class="split">
     <div>
+      <span class="eyebrow">Security</span>
 {{#PAID}}      <h2>Your key, sealed to you and checked by your browser</h2>
       <p>Our server makes the keypair, locks it with a key that only your browser holds, and deletes its own copy. Nobody else can open the result, us included.</p>
       <p>Your browser then re-derives the address from the key and refuses anything that does not match. It also leaves a copy locked to your wallet, so My addresses can show the key again when that wallet signs. We cannot open that copy.</p>
@@ -593,6 +639,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
 </section>
 
 <section class="sec" id="faq">
+  <span class="eyebrow">FAQ</span>
   <h2>Questions</h2>
   <div class="faq">
     <details><summary>How do I use the key?</summary><p>In Phantom or Solflare, choose Add wallet, then Import private key, and paste it. For the Solana CLI, use the downloaded keypair file. For a token, use the keypair as the mint when you create the token.</p></details>
@@ -624,6 +671,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
     <div><h4>Make</h4><a href="#make" data-goto="wallet">Wallet address</a><a href="#make" data-goto="token">Token address</a><a href="addresses" target="_blank">My addresses</a></div>
     <div><h4>Learn</h4><a href="#how">How it works</a><a href="#times">How long it takes</a><a href="#faq">Questions</a></div>
     <div><h4>Trust</h4><a href="#safe">Is it safe?</a><a href="#safe">Where keys are made</a>{{SOURCE_LINK}}</div>
+    <div><h4>Community</h4>{{#X}}<a href="{{X_URL}}" target="_blank" rel="noopener" class="fx"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>{{X_HANDLE}}</a>{{/X}}<span class="fca">CA: {{#CA}}<code>{{CA}}</code>{{/CA}}{{^CA}}Coming soon{{/CA}}</span></div>
     <div><h4>Legal</h4><a href="legal#terms" target="_blank">Terms</a><a href="legal#privacy" target="_blank">Privacy</a><a href="legal#refunds" target="_blank">Refunds</a></div>
   </div>
   <div class="fine"><span>© {{OPERATOR}}. Not affiliated with the Solana Foundation.</span><span>{{CONTACT_LINE}}</span><span>{{#PAID}}Keys are made on our server and sealed to your browser.{{/PAID}}{{^PAID}}Keys are made on your device unless you turn on Fast mode.{{/PAID}}</span></div>
@@ -1572,6 +1620,7 @@ async function copy(text, btn){
 }
 
 /* ---------- events ---------- */
+document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => copy(b.dataset.copy, b)));   // the token address
 function clearFound(){ state.found = null; $('card').classList.remove('found'); }
 function setCase(any){
   state.anyCase = !!any;

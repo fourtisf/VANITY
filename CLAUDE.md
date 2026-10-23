@@ -143,6 +143,8 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `OPERATOR_NAME` | `SITE_NAME` | Who runs the site, named in the legal page |
 | `JURISDICTION` | empty | Country whose laws govern the terms |
 | `SOURCE_URL` | empty | Public source code link in the footer |
+| `X_URL` | `https://x.com/platesfun` | X account in the header, under the headline and in the footer; `off` hides it |
+| `TOKEN_CA` | empty | Token contract address under the headline and in the footer; empty shows "CA: Coming soon" |
 
 ## Troubleshooting
 

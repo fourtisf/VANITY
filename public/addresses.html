@@ -40,6 +40,7 @@ button{font:inherit;cursor:pointer}
 .top nav{margin-left:auto;display:flex;gap:4px}
 .top nav a{color:var(--muted);text-decoration:none;font:600 15px var(--display);padding:8px 11px;border-radius:10px;white-space:nowrap}
 .top nav a:hover{color:var(--text);background:rgba(143,114,255,.1)}
+.top nav a.xi{display:inline-flex;align-items:center;color:var(--text)}
 .top nav a[aria-current]{color:var(--teal);background:var(--teal-wash)}
 main{max-width:860px;margin:0 auto;padding:30px 20px 80px}
 h1{font:700 clamp(30px,5vw,42px)/1.15 var(--display);margin:18px 0 6px}
@@ -93,6 +94,8 @@ h2{font:700 24px var(--display);margin:0 0 6px}
 .knote{margin:10px 0 0;color:var(--warn);font-size:14px}
 .kadd{border-color:var(--line2)}
 .kadd .knote{color:var(--muted)}
+.kwhy{margin:0 0 12px;color:var(--warn);font-size:15px}
+.kwhy b{color:var(--text)}
 .imsg{margin:10px 0 0;color:var(--warn);font-size:14.5px}
 @media (max-width:640px){ .item{padding:16px} #empty,.add{padding:20px 18px} .addr{font-size:15px} }
 </style>
@@ -100,7 +103,7 @@ h2{font:700 24px var(--display);margin:0 0 6px}
 <body>
 <header class="top"><div class="in">
   <a class="home" href="./" aria-label="Home"><span class="logo"><svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true"><rect x="6" y="14" width="88" height="72" rx="20" fill="#3BE3C3" stroke="#0B0C15" stroke-width="5"/><ellipse cx="36" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="39" cy="49" r="5.5" fill="#0B0C15"/><ellipse cx="64" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="67" cy="49" r="5.5" fill="#0B0C15"/><path d="M42 66 Q50 74 58 66" fill="none" stroke="#0B0C15" stroke-width="4.5" stroke-linecap="round"/></svg></span><span class="brand">{{SITE_NAME}}</span></a>
-  <nav><a href="./#make">Make an address</a><a href="addresses" aria-current="page">My addresses</a></nav>
+  <nav><a href="./#make">Make an address</a><a href="addresses" aria-current="page">My addresses</a>{{#X}}<a class="xi" href="{{X_URL}}" target="_blank" rel="noopener" aria-label="{{SITE_NAME}} on X"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>{{/X}}</nav>
 </div></header>
 <main>
   <h1>My addresses</h1>
@@ -218,11 +221,11 @@ h2{font:700 24px var(--display);margin:0 0 6px}
       return `<article class="item" data-addr="${a}">
         <div class="addr"><span class="p">${a.slice(0, pl)}</span>${a.slice(pl, a.length - sl)}<span class="s">${a.slice(a.length - sl)}</span></div>
         <div class="meta">${tag ? `<span class="tag">${tag}</span>` : ''}${keyTag}${made ? `<span>${x.source === 'manual' ? 'Added' : 'Made'} ${made}</span>` : ''}${balances && a in balances ? `<span class="bal">${sol(balances[a])} SOL</span>` : ''}</div>
-        <div class="acts"><button type="button" class="btn" data-act="copy">Copy address</button>${wm && x.vault ? `<button type="button" class="btn" data-act="key">${open ? 'Hide private key' : 'Show private key'}</button>` : ''}${wm && !x.vault ? `<button type="button" class="btn" data-act="addKey">${add ? 'Cancel' : 'Add key'}</button>` : ''}<a class="btn" href="${scan}" target="_blank" rel="noopener">Solscan</a><button type="button" class="btn danger" data-act="del">Remove</button></div>
+        <div class="acts"><button type="button" class="btn" data-act="copy">Copy address</button>${wm ? `<button type="button" class="btn" data-act="${x.vault ? 'key' : 'addKey'}">${open || add ? 'Hide private key' : 'Show private key'}</button>` : ''}<a class="btn" href="${scan}" target="_blank" rel="noopener">Solscan</a><button type="button" class="btn danger" data-act="del">Remove</button></div>
         ${open ? `<div class="kbox"><div class="kval" data-key>${b58(keys.get(a))}</div><div class="acts"><button type="button" class="btn" data-act="copyKey">Copy key</button><button type="button" class="btn" data-act="dl">Download keypair</button></div>
           <p class="knote">Anyone with this key controls the ${x.mode === 'token' ? 'mint' : 'wallet'}. Never share it, and never paste it into a site you do not trust.</p></div>` : ''}
-        ${add ? `<div class="kbox kadd"><div class="addrow"><input type="password" data-keyin placeholder="Paste its private key" autocomplete="off" spellcheck="false" aria-label="Private key of this address"><button type="button" class="btn" data-act="saveKey">Save key</button><button type="button" class="btn" data-act="keyFile">Choose keypair file</button></div>
-          <p class="knote">Add the key you copied or downloaded when you made this address. It is checked against the address and locked to this wallet here, so our server only gets a copy it cannot open.</p></div>` : ''}
+        ${add ? `<div class="kbox kadd"><p class="kwhy"><b>This key was never stored.</b> The address was made before key backups started, so the key went only to the browser that made it, and nobody can show it here. If you copied the key or downloaded the keypair file then, add it once below and Show private key works for this address from then on.</p><div class="addrow"><input type="password" data-keyin placeholder="Paste its private key" autocomplete="off" spellcheck="false" aria-label="Private key of this address"><button type="button" class="btn" data-act="saveKey">Save key</button><button type="button" class="btn" data-act="keyFile">Choose keypair file</button></div>
+          <p class="knote">The key is checked against the address and locked to this wallet here, so our server only gets a copy it cannot open. Addresses made from now on are backed up by themselves.</p></div>` : ''}
         ${note ? `<p class="imsg">${esc(note)}</p>` : ''}
       </article>`;
     }).join('');

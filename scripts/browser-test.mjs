@@ -132,7 +132,8 @@ check(await page.textContent('.brand') === 'Test Vanity', 'brand missing from th
 check(await page.getAttribute('meta[property="og:image"]', 'content') === 'https://vanity.example/og.png', 'og:image not absolute');
 check(await page.getAttribute('[data-contact]', 'href') === 'mailto:help@vanity.example', 'contact link missing');
 check(await page.evaluate(() => document.fonts.check('700 20px Fredoka')), 'self-hosted font not loaded');
-console.log('site details, contact, preview tags and fonts: ok');
+check(await page.getAttribute('.xbtn', 'href') === 'https://x.com/platesfun' && /CA\s*Coming soon/.test(await page.textContent('.tokenbar')) && /Follow @platesfun/.test(await page.textContent('.tokenbar')), 'X link or CA missing: ' + await page.textContent('.tokenbar'));
+console.log('site details, contact, preview tags, fonts, X link and CA: ok');
 
 /* ---- header: the visitor connects their own wallet; nothing from the site owner is needed ---- */
 await page.waitForSelector('#hdrWallet:not([hidden])', { timeout: 30000 });
@@ -340,9 +341,9 @@ check(await app.inputValue('#pre') === 'Ab' && await app.inputValue('#suf') === 
 console.log('phone: wallet app links and reopened page: ok');
 
 /* ---- free Fast mode (no PAY_TO): the header wallet is still there ---- */
-const freePort = port + 1;
+const freePort = port + 1, CA = key();
 const freeServer = spawn(process.execPath, [path.join(root, 'server.js')], {
-  env: { ...process.env, ENV_FILE: path.join(tmpdir(), 'no-such.env'), ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(freePort), PAY_TO: '',
+  env: { ...process.env, ENV_FILE: path.join(tmpdir(), 'no-such.env'), ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(freePort), PAY_TO: '', TOKEN_CA: CA, X_URL: 'off',
     SOLANA_RPC: `http://127.0.0.1:${rpc.address().port}` },
   stdio: ['ignore', 'pipe', 'inherit'],
 });
@@ -352,6 +353,7 @@ fp.on('pageerror', e => fail('free page error: ' + e.message));
 await fp.goto(`http://127.0.0.1:${freePort}/`, { waitUntil: 'load' });
 await fp.waitForSelector('#hdrWallet:not([hidden])', { timeout: 30000 });
 check(!!(await fp.evaluate(() => fetch('api/blockhash').then(r => r.json()))).blockhash, 'no blockhash without PAY_TO');
+check(await fp.textContent('.tokenbar code') === CA && !(await fp.locator('.xbtn, .xfollow').count()), 'TOKEN_CA or X_URL=off not applied');
 // A word that would take more than a day on this device cannot be started.
 await fp.waitForFunction(() => /keys\/sec/.test(document.querySelector('#sSub').textContent), null, { timeout: 30000 });
 await fp.fill('#pre', 'pumppump');
