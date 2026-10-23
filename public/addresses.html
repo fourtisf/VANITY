@@ -9,7 +9,7 @@
 <title>My addresses | {{SITE_NAME}}</title>
 <meta name="description" content="The Solana addresses you made on {{SITE_NAME}}, saved in your browser.">
 <meta name="robots" content="noindex">
-<link rel="canonical" href="{{ORIGIN}}/addresses.html">
+<link rel="canonical" href="{{ORIGIN}}/addresses">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <style>
@@ -30,11 +30,14 @@ body{margin:0;background:var(--bg);color:var(--text);font:600 16.5px/1.6 var(--s
 a{color:var(--teal)}
 button{font:inherit;cursor:pointer}
 .top{position:sticky;top:0;z-index:2;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);background:rgba(11,12,21,.7);border-bottom:1px solid rgba(53,47,102,.5)}
-.top .in{max-width:860px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:14px}
-.brand{font:700 20px var(--display);color:var(--text);text-decoration:none}
+.top .in{max-width:1180px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:14px}
+.home{display:flex;align-items:center;gap:12px;text-decoration:none}
+.logo{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:13px;background:linear-gradient(160deg,#2A2160,#16132F);border:1px solid var(--line2);box-shadow:0 6px 18px -6px rgba(91,69,201,.7)}
+.brand{font:700 20px var(--display);color:var(--text)}
 .top nav{margin-left:auto;display:flex;gap:4px}
 .top nav a{color:var(--muted);text-decoration:none;font:600 15px var(--display);padding:8px 11px;border-radius:10px;white-space:nowrap}
 .top nav a:hover{color:var(--text);background:rgba(143,114,255,.1)}
+.top nav a[aria-current]{color:var(--teal);background:var(--teal-wash)}
 main{max-width:860px;margin:0 auto;padding:30px 20px 80px}
 h1{font:700 clamp(30px,5vw,42px)/1.15 var(--display);margin:18px 0 6px}
 h2{font:700 24px var(--display);margin:0 0 6px}
@@ -54,6 +57,9 @@ h2{font:700 24px var(--display);margin:0 0 6px}
 .tag{font-size:13px;font-weight:800;padding:3px 10px;border-radius:999px;background:rgba(143,114,255,.12);color:#CFC4FF}
 .tag.ok{background:var(--teal-wash);color:var(--teal)}
 .tag.warn{background:rgba(255,196,125,.1);color:var(--warn)}
+.tag.paid{background:rgba(95,184,240,.12);color:#9CD3FF}
+.wbtn{display:inline-flex;align-items:center;gap:10px}
+.wbtn img{width:24px;height:24px;border-radius:7px}
 .bal{font-family:var(--mono);color:var(--text)}
 .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .acts a{text-decoration:none}
@@ -72,12 +78,19 @@ h2{font:700 24px var(--display);margin:0 0 6px}
 </head>
 <body>
 <header class="top"><div class="in">
-  <a class="brand" href="./">{{SITE_NAME}}</a>
-  <nav><a href="./#make">Make an address</a></nav>
+  <a class="home" href="./" aria-label="Home"><span class="logo"><svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true"><rect x="6" y="14" width="88" height="72" rx="20" fill="#3BE3C3" stroke="#0B0C15" stroke-width="5"/><ellipse cx="36" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="39" cy="49" r="5.5" fill="#0B0C15"/><ellipse cx="64" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="67" cy="49" r="5.5" fill="#0B0C15"/><path d="M42 66 Q50 74 58 66" fill="none" stroke="#0B0C15" stroke-width="4.5" stroke-linecap="round"/></svg></span><span class="brand">{{SITE_NAME}}</span></a>
+  <nav><a href="./#make">Make an address</a><a href="addresses" aria-current="page">My addresses</a></nav>
 </div></header>
 <main>
   <h1>My addresses</h1>
-  <p class="lead">Every address you make on {{SITE_NAME}} is added here, so you can find it again. The list is saved only in this browser, on this device. Private keys are never saved here: keep the key you copied or downloaded.</p>
+  <p class="lead">Your history of addresses made on {{SITE_NAME}}. The ones made in this browser are added by themselves; connect the wallet you paid with to bring in every address it paid for, on any device. Private keys are never saved: keep the key you copied or downloaded.</p>
+
+  <section class="add" id="walletBox" hidden style="margin:0 0 22px">
+    <h2>Addresses you paid for</h2>
+    <p>Connect the wallet you paid with and sign a short message to list every address it paid for. Signing is free and sends no transaction.</p>
+    <div class="addrow" id="walletRow"><button type="button" class="btn" id="walletBtn">Connect wallet</button></div>
+    <p class="addmsg" id="walletMsg" hidden></p>
+  </section>
 
   <div class="bar" id="bar" hidden>
     <span class="count" id="count"></span>
@@ -138,7 +151,7 @@ h2{font:700 24px var(--display);margin:0 0 6px}
       const made = isFinite(x.at) ? new Date(x.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
       return `<article class="item" data-addr="${a}">
         <div class="addr"><span class="p">${a.slice(0, pl)}</span>${a.slice(pl, a.length - sl)}<span class="s">${a.slice(a.length - sl)}</span></div>
-        <div class="meta"><span class="tag">${x.mode === 'token' ? 'Token mint' : x.mode === 'wallet' ? 'Wallet' : x.source === 'file' ? 'From a keypair file' : 'Added by hand'}</span>${x.keySaved === true ? '<span class="tag ok">Key saved</span>' : x.keySaved === false ? '<span class="tag warn">Key not saved</span>' : ''}${made ? `<span>${x.source === 'manual' ? 'Added' : 'Made'} ${made}</span>` : ''}${balances && a in balances ? `<span class="bal">${sol(balances[a])} SOL</span>` : ''}</div>
+        <div class="meta">${(t => t ? `<span class="tag">${t}</span>` : '')(x.mode === 'token' ? 'Token mint' : x.mode === 'wallet' ? 'Wallet' : x.source === 'file' ? 'From a keypair file' : x.source === 'manual' ? 'Added by hand' : '')}${x.payer && ADDR.test(x.payer) ? `<span class="tag paid">Paid with ${x.payer.slice(0, 4)}…${x.payer.slice(-4)}</span>` : ''}${x.keySaved === true ? '<span class="tag ok">Key saved</span>' : x.keySaved === false ? '<span class="tag warn">Key not saved</span>' : ''}${made ? `<span>${x.source === 'manual' ? 'Added' : 'Made'} ${made}</span>` : ''}${balances && a in balances ? `<span class="bal">${sol(balances[a])} SOL</span>` : ''}</div>
         <div class="acts"><button type="button" class="btn" data-act="copy">Copy address</button><a class="btn" href="${scan}" target="_blank" rel="noopener">Solscan</a><button type="button" class="btn danger" data-act="del">Remove</button></div>
       </article>`;
     }).join('');
@@ -176,8 +189,12 @@ h2{font:700 24px var(--display);margin:0 0 6px}
   /* ---- adding addresses made before ---- */
   // Adds entries not in the list yet and keeps the list newest first. Returns how many were new.
   function addAll(entries){
-    const list = load(), have = new Set(list.map(x => x.address));
-    const fresh = entries.filter(x => !have.has(x.address) && have.add(x.address));
+    const list = load(), byAddr = new Map(list.map(x => [x.address, x]));
+    const fresh = entries.filter(x => {
+      const old = byAddr.get(x.address);
+      if (old){ if (x.payer && !old.payer) old.payer = x.payer; return false; }   // known already: only learn who paid
+      byAddr.set(x.address, x); return true;
+    });
     save(list.concat(fresh).sort((a, b) => (b.at || 0) - (a.at || 0)));
     if (fresh.length && balances){ balances = null; $('balBtn').textContent = 'Show balances'; }   // the total would leave the new ones out
     render();
@@ -234,11 +251,57 @@ h2{font:700 24px var(--display);margin:0 0 6px}
   $('pasteBtn').addEventListener('click', addPasted);
   $('paste').addEventListener('keydown', e => { if (e.key === 'Enter') addPasted(); });
 
+  /* ---- addresses a wallet paid for: connect it, sign a one-time message, and the server lists them ---- */
+  const wallets = [];
+  function register(...ws){
+    for (const w of ws) if (w && w.features && w.features['standard:connect'] && w.features['solana:signMessage'] && !wallets.includes(w)) wallets.push(w);
+    return () => {};
+  }
+  window.addEventListener('wallet-standard:register-wallet', ({ detail }) => { try { detail({ register }); } catch {} });
+  try { window.dispatchEvent(new CustomEvent('wallet-standard:app-ready', { detail: Object.freeze({ register }) })); } catch {}
+  const wmsg = t => { $('walletMsg').textContent = t; $('walletMsg').hidden = !t; };
+  const post = async (url, body) => {
+    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error === 'not-signed' ? 'the signature did not check out; try again' : j.error || 'the server did not answer');
+    return j;
+  };
+  const errText = e => { const m = e && (typeof e === 'string' ? e : e.message); return m && m !== '[object Object]' ? m : 'the wallet gave no reason'; };
+  async function loadFrom(w){
+    $('walletRow').querySelectorAll('button').forEach(b => { b.disabled = true; });
+    try {
+      wmsg(`Connecting to ${w.name}…`);
+      const { accounts } = await w.features['standard:connect'].connect();
+      const account = accounts && accounts[0];
+      if (!account) throw new Error('the wallet shared no account');
+      const { message } = await post('api/history/challenge', { wallet: account.address });
+      wmsg(`Sign the message in ${w.name}. It is free and sends nothing.`);
+      const [out] = await w.features['solana:signMessage'].signMessage({ account, message: new TextEncoder().encode(message) });
+      const { addresses } = await post('api/history', { wallet: account.address, message, signature: btoa(String.fromCharCode(...new Uint8Array(out.signature))) });
+      const added = addAll(addresses.filter(h => ADDR.test(h.address)).map(h => ({ address: h.address, pl: String(h.prefix || '').length, sl: String(h.suffix || '').length,
+        at: isFinite(h.at) ? h.at : Date.now(), payer: account.address, source: 'wallet' })));
+      const short = `${account.address.slice(0, 4)}…${account.address.slice(-4)}`;
+      wmsg(addresses.length ? `${short} paid for ${addresses.length} ${addresses.length === 1 ? 'address' : 'addresses'}${added ? `; ${added} added to the list` : ', all already in the list'}.`
+        : `No addresses were paid for with ${short} yet. Addresses made before this history existed can still be added below.`);
+    } catch (e) {
+      const t = errText(e);
+      wmsg(/reject|denied|declin|cancel/i.test(t) ? 'You cancelled it in your wallet.' : `Could not load the addresses: ${t}.`);
+    } finally { $('walletRow').querySelectorAll('button').forEach(b => { b.disabled = false; }); }
+  }
+  $('walletRow').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.w != null) return loadFrom(wallets[+b.dataset.w]);
+    if (!wallets.length) return wmsg('No Solana wallet that can sign in was found in this browser. Open this page in Phantom, Solflare or Backpack, or install one.');
+    if (wallets.length === 1) return loadFrom(wallets[0]);
+    $('walletRow').innerHTML = wallets.map((w, i) => `<button type="button" class="btn wbtn" data-w="${i}"><img src="${String(w.icon).replace(/"/g, '&quot;')}" alt="">${w.name.replace(/[<&>"]/g, '')}</button>`).join('');
+  });
+
   // Another tab of the site may add an address while this page is open.
   window.addEventListener('storage', e => { if (e.key === KEY || e.key === null) render(); });
   fetch('api/status', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(s => {
     if (!s) return;
     if (/^solana:(devnet|testnet)$/.test(s.chain || '')) cluster = s.chain.slice(7);
+    $('walletBox').hidden = !s.pay;   // a history exists only where searches are paid
     $('balBtn').hidden = false; render();
   }).catch(() => {});
   render();

@@ -16,14 +16,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const key = () => VP.b58(randomBytes(32));
 let server;
 const PAID_JOBS_FILE = path.join(tmpdir(), `vanity-paid-${process.pid}.json`);
-const fail = msg => { console.error('FAIL:', msg); if (server) server.kill(); rmSync(PAID_JOBS_FILE, { force: true }); process.exit(1); };
+const fail = msg => { console.error('FAIL:', msg); if (server) server.kill(); rmSync(PAID_JOBS_FILE, { force: true }); rmSync(PAID_JOBS_FILE + '.history', { force: true }); process.exit(1); };
 
 /* ---- fake RPC: the test lands transactions on it ---- */
 const PAY_TO = key(), SYSTEM = '11111111111111111111111111111111';
 const byRef = new Map(), byId = new Map();
 // indexed: false plays an RPC that has the transaction but has not indexed it under the reference yet.
-function addTx(reference, lamports, { err = null, sig = VP.b58(randomBytes(64)), indexed = true } = {}) {
-  const keys = [key(), PAY_TO, ...(reference ? [reference] : []), SYSTEM];
+function addTx(reference, lamports, { err = null, sig = VP.b58(randomBytes(64)), indexed = true, payer = key() } = {}) {
+  const keys = [payer, PAY_TO, ...(reference ? [reference] : []), SYSTEM];
   const pre = keys.map(() => 1e9), post = [...pre];
   if (!err) { post[0] -= 5000 + lamports; post[1] += lamports; } else post[0] -= 5000;
   byId.set(sig, { slot: 1, blockTime: Math.floor(Date.now() / 1000),
@@ -48,20 +48,21 @@ await new Promise(r => rpc.listen(0, '127.0.0.1', r));
 // A transfer signed the way a wallet signs the page's transaction (legacy, one System transfer from the signer).
 const b58dec = s => { let n = 0n; for (const c of s) n = n * 58n + BigInt(VP.ALPH.indexOf(c)); const out = []; while (n) { out.unshift(Number(n & 255n)); n >>= 8n; } while (out.length < 32) out.unshift(0); return Buffer.from(out); };
 const sent = new Map();   // base64 transaction -> what it pays (the fake chain lands it when sent)
+const wallet = generateKeyPairSync('ed25519'), walletAddress = VP.b58(wallet.publicKey.export({ format: 'der', type: 'spki' }).subarray(-32));
 function signedTransfer({ to = PAY_TO, lamports, reference }) {
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const { publicKey, privateKey } = wallet;
   const keys = [publicKey.export({ format: 'der', type: 'spki' }).subarray(-32), b58dec(to), ...(reference ? [b58dec(reference)] : [])];
   const data = Buffer.alloc(12); data.writeUInt32LE(2, 0); data.writeBigUInt64LE(BigInt(lamports), 4);
   const msg = Buffer.from([1, 0, keys.length - 1, keys.length + 1, ...Buffer.concat(keys), ...Buffer.alloc(32), ...randomBytes(32),
     1, keys.length, keys.length, ...keys.map((_, i) => i), data.length, ...data]);
   const tx = Buffer.concat([Buffer.from([1]), sign(null, msg, privateKey), msg]).toString('base64');
-  sent.set(tx, { reference, lamports, sig: VP.b58(Buffer.from(tx, 'base64').subarray(1, 65)) });
+  sent.set(tx, { reference, lamports, sig: VP.b58(Buffer.from(tx, 'base64').subarray(1, 65)), payer: walletAddress });
   return tx;
 }
 function relayed(b64) {
   const t = sent.get(b64);
   if (!t) return undefined;
-  addTx(t.reference, t.lamports, { sig: t.sig });
+  addTx(t.reference, t.lamports, { sig: t.sig, payer: t.payer });
   return t.sig;
 }
 
@@ -70,7 +71,7 @@ const port = 20000 + Math.floor(Math.random() * 20000), base = `http://127.0.0.1
 const savedJobs = () => { try { return JSON.parse(readFileSync(PAID_JOBS_FILE, 'utf8')).map(j => j.id); } catch { return []; } };
 async function startServer() {
   server = spawn(process.execPath, [fileURLToPath(new URL('../server.js', import.meta.url))], {
-    env: { ...process.env, ENV_FILE: path.join(tmpdir(), 'no-such.env'), ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(port), PAY_TO, PAID_JOBS_FILE, TRUST_PROXY: '1', MAX_UNPAID: '1',
+    env: { ...process.env, ENV_FILE: path.join(tmpdir(), 'no-such.env'), ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(port), PAY_TO, PAID_JOBS_FILE, HISTORY_FILE: PAID_JOBS_FILE + '.history', TRUST_PROXY: '1', MAX_UNPAID: '1', SLICE_SECONDS: '2',
       CONTACT_EMAIL: 'help@example.com', SOLANA_RPC: `http://127.0.0.1:${rpc.address().port}` },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
@@ -168,6 +169,36 @@ for (const t0 = Date.now(); j4.status === 'queued' || j4.status === 'running'; j
 if ((await relay(signedTransfer({ lamports: l4, reference: r4 }))).code !== 409) fail('a paid job took another payment');
 console.log('signed payment sent by the server: only an exact payment for the job, then paid: ok');
 
+// My addresses: the paying wallet signs a fresh challenge and gets back the address it paid for; nobody else does.
+const history = async (signer = wallet.privateKey, reuse) => {
+  const { message } = reuse || await api('/api/history/challenge', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ wallet: walletAddress }) });
+  const signature = sign(null, Buffer.from(message), signer).toString('base64');
+  return { message, res: await api('/api/history', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ wallet: walletAddress, message, signature }) }) };
+};
+const h1 = await history();
+if (h1.res.code !== 200 || !h1.res.addresses.some(h => h.address === j4.address && h.prefix === 'A')) fail('paying wallet does not see its address: ' + JSON.stringify(h1.res));
+if ((await history(undefined, { message: h1.message })).res.code !== 401) fail('a used sign-in message worked twice');
+if ((await history(generateKeyPairSync('ed25519').privateKey)).res.code !== 401) fail('another key signed in as the paying wallet');
+console.log('address history: the paying wallet signs in and sees its address; reused or foreign signatures refused: ok');
+
+// Long paid searches are accepted, and the engine takes turns: a one-key search paid after a days-long one is
+// done within a turn or two, and the long one keeps going.
+const pay = async (j, ms) => { report(j.id, addTx(j.pay.reference, j.pay.lamports)); return watch(j.id, ms); };
+const long = await newJob('Abcdef', false, '10.0.0.5');
+if (long.code !== 201 || !(long.avgSeconds > 3600)) fail('a long paid search was refused: ' + JSON.stringify(long));
+if ((await pay(long)).status !== 'running') fail('long search did not start');
+await sleep(3000);
+const short = await newJob('A', true, '10.0.0.6');
+const t0 = Date.now(); await pay(short);
+let sj; do { sj = await api('/api/jobs/' + short.id); await sleep(200); } while (sj.status !== 'done' && Date.now() - t0 < 15000);
+if (sj.status !== 'done') fail('a short search waited behind a long one: ' + sj.status);
+const triesThen = (await api('/api/jobs/' + long.id)).tries;
+await sleep(5000);
+const lj = await api('/api/jobs/' + long.id);
+if (lj.status !== 'running' || !(lj.tries > triesThen)) fail('the long search did not go on: ' + JSON.stringify({ status: lj.status, tries: lj.tries, triesThen }));
+if ((await api('/api/jobs/' + long.id, { method: 'DELETE' })).status !== 'canceled') fail('long search not canceled');
+console.log(`long paid search accepted (${Math.round(long.avgSeconds / 3600)} h average); a short one paid after it was done in ${((Date.now() - t0) / 1000 - 5).toFixed(1)}s: ok`);
+
 // A payment the page never reported (it closed first) is found by its reference within ~10 seconds,
 // and a paid job that is still searching comes back after a restart under the same id.
 const slow = VP.analyze('Abcd', '', false);
@@ -183,5 +214,5 @@ if (!['queued', 'running'].includes(back.status) || back.paid !== sig3) fail('pa
 if ((await api('/api/jobs/' + job3.id, { method: 'DELETE' })).status !== 'canceled' || savedJobs().length) fail('canceled paid job still saved');
 console.log('unreported payment found, paid job survives a restart: ok');
 
-server.kill(); rpc.close(); rmSync(PAID_JOBS_FILE, { force: true });
+server.kill(); rpc.close(); rmSync(PAID_JOBS_FILE, { force: true }); rmSync(PAID_JOBS_FILE + '.history', { force: true });
 console.log('ALL PAYMENT CHECKS PASSED');

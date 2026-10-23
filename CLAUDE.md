@@ -17,7 +17,7 @@ A website that creates Solana wallet or token addresses starting or ending with 
 | `site.js` | Site name, contact and links from the environment, filled into `{{NAME}}` placeholders in the pages |
 | `public/index.html` | The whole website (HTML, CSS, app JS), including Connect wallet (header), Fast mode payment and Add SOL |
 | `public/legal.html` | Terms, privacy and refund policy templates |
-| `public/addresses.html` | My addresses: every address made in this browser (from localStorage; addresses only, never keys), with balances on request through `/api/balances` |
+| `public/addresses.html` | My addresses (served at `/addresses`): every address made in this browser (localStorage), plus every address a wallet paid for after it signs in (`/api/history`, signed message); balances on request through `/api/balances`. Addresses only, never keys |
 | `engine/vanity.wgsl` | GPU shader: SHA-512, ed25519, base58 checks. Shared by browser and server |
 | `engine/gpu-engine.js` | WebGPU host code. Shared by browser and server |
 | `engine/pattern.js` | Pattern parsing and odds. Shared by browser and server |
@@ -107,7 +107,7 @@ docker build -t solana-vanity .
 docker run -d --restart unless-stopped --gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility --env-file .env -p 8080:8080 solana-vanity
 ```
 
-With payments on, keep paid jobs across container rebuilds with a volume: add `-v vanity-data:/data -e PAID_JOBS_FILE=/data/paid-jobs.json`.
+With payments on, keep paid jobs and the address history across container rebuilds with a volume: add `-v vanity-data:/data -e PAID_JOBS_FILE=/data/paid-jobs.json -e HISTORY_FILE=/data/history.json`.
 
 ## Settings
 
@@ -118,14 +118,15 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Where to listen. Behind Nginx on the same machine use `HOST=127.0.0.1` (the setup script does), so nobody can skip Nginx |
 | `ENGINE` | `auto` | `auto`, `gpu` or `cpu` |
 | `CPU_THREADS` | all cores | CPU fallback threads |
-| `MAX_EXPECTED_SECONDS` | `3600` | Refuse Fast mode words whose average search is longer |
-| `MAX_RUN_SECONDS` | `21600` | Hard cap per job. Free jobs also stop at 5x their average; paid ones run to this cap |
+| `MAX_EXPECTED_SECONDS` | `3600`, or a week with `PAY_TO` | Refuse words whose average search is longer |
+| `MAX_RUN_SECONDS` | `21600` | Free jobs stop here or at 5x their average, whichever comes first; paid ones at whichever comes last |
+| `SLICE_SECONDS` | `20` | With other searches waiting, a running one hands the engine over this often and goes to the back of the line, so long searches never hold up short ones |
 | `MAX_QUEUE` | `25` | Jobs waiting to run at once |
 | `MAX_UNPAID` | `50` | Jobs waiting for their payment at once (separate from `MAX_QUEUE`) |
 | `PAY_WINDOW_SECONDS` | `900` | How long a job waits for its payment |
 | `MAX_JOBS_PER_IP` | `1` | Active Fast mode jobs per visitor |
 | `RESULT_TTL_SECONDS` | `3600` | How long a sealed result stays in memory |
-| `PAID_RESULT_TTL_SECONDS` | `86400` | The same for paid jobs |
+| `PAID_RESULT_TTL_SECONDS` | `604800` | The same for paid jobs (a week, for long searches) |
 | `ABANDON_SECONDS` | `600` | Cancel jobs whose page stopped checking in |
 | `TRUST_PROXY` | `0` | Set `1` behind Nginx so per-IP limits use `X-Forwarded-For` |
 | `PAY_TO` | empty | Solana address that receives payments. Empty keeps every search free. Set, every search is paid and runs on this server (see `DEVICE_SEARCH`) |
@@ -135,6 +136,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
 | `SOLANA_RPC` | public RPC of the cluster | The public RPC is rate-limited; use a provider URL (Helius, QuickNode, Triton) in production |
 | `PAID_JOBS_FILE` | `./paid-jobs.json` | Where paid jobs wait across restarts (no keys or results, see below) |
+| `HISTORY_FILE` | `./history.json` | Paid addresses with the wallet that paid, for My addresses (no keys) |
 | `SITE_NAME` | `Plates` | Brand in the header, title and link previews |
 | `SITE_URL` | from the request | Public address, used in link previews |
 | `CONTACT_EMAIL` / `CONTACT_TELEGRAM` | empty | Footer, legal page and refund messages. The server warns at startup if payments are on without one |

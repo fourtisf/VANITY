@@ -3,3 +3,4 @@ dist
 .env
 paid-jobs.json*
 screenshots
+history.json*

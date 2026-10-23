@@ -390,7 +390,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <a href="#times">How long</a>
       <a href="#safe">Is it safe?</a>
       <a href="#faq">Questions</a>
-      <a href="addresses.html">My addresses</a>
+      <a href="addresses">My addresses</a>
     </nav>
     <span class="sp"></span>
     <span class="pill">
@@ -503,6 +503,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <div class="bar"><i id="bar"></i></div>
       <div class="runmeta"><span id="rLuck"></span><span id="rTime"></span></div>
     </div>
+    <p class="note info" id="bgNote" hidden></p>
     <div class="note info paybox" id="paybox" hidden>
       <div class="payhead"><p>Pay <b><span id="payAmt"></span> SOL</b> to start the search on <span class="srv">our cloud GPU</span>.</p><span class="paytime" id="payTime"></span></div>
       <div class="paywallet" id="payWallet" hidden>
@@ -512,7 +513,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       </div>
       <button type="button" class="dl paybtn" id="payBtn"><span id="payBtnText">Connect wallet</span></button>
       <p class="small" id="payMsg"></p>
-      <p class="small legal">By paying you agree to the <a href="legal.html#terms" target="_blank">Terms</a> and the <a href="legal.html#refunds" target="_blank">Refund policy</a>.</p>
+      <p class="small legal">By paying you agree to the <a href="legal#terms" target="_blank">Terms</a> and the <a href="legal#refunds" target="_blank">Refund policy</a>.</p>
     </div>
     <div class="toast" id="toast" role="status" hidden></div>
     <dialog class="wallets" id="walletDlg" aria-labelledby="walletTitle">
@@ -622,10 +623,10 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <span class="logo" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 100 100"><rect x="6" y="14" width="88" height="72" rx="20" fill="#3BE3C3" stroke="#0B0C15" stroke-width="5"/><ellipse cx="36" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="39" cy="49" r="5.5" fill="#0B0C15"/><ellipse cx="64" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="67" cy="49" r="5.5" fill="#0B0C15"/><path d="M42 66 Q50 74 58 66" fill="none" stroke="#0B0C15" stroke-width="4.5" stroke-linecap="round"/></svg></span>
       <p class="about">Vanity addresses for Solana, {{#PAID}}made for you and sealed to your browser.{{/PAID}}{{^PAID}}ground on your own graphics card.{{/PAID}}</p>
     </div>
-    <div><h4>Make</h4><a href="#make" data-goto="wallet">Wallet address</a><a href="#make" data-goto="token">Token address</a><a href="addresses.html">My addresses</a></div>
+    <div><h4>Make</h4><a href="#make" data-goto="wallet">Wallet address</a><a href="#make" data-goto="token">Token address</a><a href="addresses">My addresses</a></div>
     <div><h4>Learn</h4><a href="#how">How it works</a><a href="#times">How long it takes</a><a href="#faq">Questions</a></div>
     <div><h4>Trust</h4><a href="#safe">Is it safe?</a><a href="#safe">Where keys are made</a>{{SOURCE_LINK}}</div>
-    <div><h4>Legal</h4><a href="legal.html#terms">Terms</a><a href="legal.html#privacy">Privacy</a><a href="legal.html#refunds">Refunds</a></div>
+    <div><h4>Legal</h4><a href="legal#terms">Terms</a><a href="legal#privacy">Privacy</a><a href="legal#refunds">Refunds</a></div>
   </div>
   <div class="fine"><span>© {{OPERATOR}}. Not affiliated with the Solana Foundation.</span><span>{{CONTACT_LINE}}</span><span>{{#PAID}}Keys are made on our server and sealed to your browser.{{/PAID}}{{^PAID}}Keys are made on your device unless you turn on Fast mode.{{/PAID}}</span></div>
 </footer>
@@ -1146,7 +1147,7 @@ async function resumeSavedJob(){
   if (!saved.length || state.running) return;
   const job = saved[0];
   saved.slice(1).forEach(j => idbDel(j.id));
-  if (Date.now() - job.created > 2 * 86400 * 1000){ idbDel(job.id); return; }
+  if (Date.now() - job.created > 8 * 86400 * 1000){ idbDel(job.id); return; }   // paid results wait a week on the server
   $('pre').value = job.prefix; $('suf').value = job.suffix;
   setMode(job.mode || 'wallet', true); setCase(job.anyCase); setFast(true);
   start(job);
@@ -1382,6 +1383,10 @@ function start(saved){
   $('goText').textContent = 'Stop'; $('go').classList.add('stop'); $('go').disabled = false;
   $('runbox').hidden = e === 'server' && !!(state.server.info && state.server.info.pay); lock(true); $('ideas').hidden = true;
   $('statusText').textContent = e === 'server' ? `Sending to ${WHERE.server}` : `Searching on ${WHERE[e]}`;
+  // A long paid search does not need this tab: the server keeps going and the page picks the result up when reopened.
+  const avg = e === 'server' && engineRate('server') ? 1 / (a.p * engineRate('server')) : 0;
+  note('bgNote', avg > 600 && state.server.info && state.server.info.pay
+    ? `This search takes about ${fmtWait(avg)}. Once it is paid, our server keeps going even if you close this tab: open this site again in this browser to collect your address.` : '');
   if (e === 'gpu') runGpu(id, a);
   else if (e === 'cpu') state.cpu.workers.forEach(w => w.postMessage({ type: 'start', runId: id, pre: a.pre.sets, suf: a.suf.sets }));
   else runServer(id, a, saved && saved.id ? saved : null);
@@ -1412,7 +1417,7 @@ function stop(){
   const r = liveRate();
   if (r && info){ if (info.engine === 'cpu') state.cpu.perThread = r / state.cpu.workers.length; else if (info.engine === 'gpu') state.gpu.rate = r; }
   $('card').classList.remove('running'); $('go').classList.remove('stop'); $('make').classList.remove('working');
-  $('runbox').hidden = true;
+  $('runbox').hidden = true; note('bgNote', '');
   state.pay = null; renderPay();
   lock(false); update();
 }
@@ -1479,7 +1484,7 @@ function renderResult(r){
   const canFund = r.mode !== 'token' && state.server.status === 'ready';
   card.innerHTML = `
     <h2>${title}</h2>
-    <p class="sub">Found after ${fmtBig(r.tries)} keys in ${fmtElapsed(r.elapsed)} on ${WHERE[r.engine]}.${location.protocol === 'file:' ? '' : ' Added to <a href="addresses.html" data-mine>My addresses</a>.'}</p>
+    <p class="sub">Found after ${fmtBig(r.tries)} keys in ${fmtElapsed(r.elapsed)} on ${WHERE[r.engine]}.${location.protocol === 'file:' ? '' : ' Added to <a href="addresses" data-mine>My addresses</a>.'}</p>
     <div class="kv"><span class="k">${label}</span>
       <div class="v">${hl(r.address, r.pl, r.sl)}</div>
       <div class="btns"><button class="sm" data-act="copyAddr">Copy</button></div>

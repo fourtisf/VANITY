@@ -28,15 +28,17 @@ const CFG = {
   host: env('HOST', '0.0.0.0'),
   engine: env('ENGINE', 'auto'),                       // auto | gpu | cpu
   cpuThreads: Math.max(1, +env('CPU_THREADS', os.cpus().length)),
-  maxExpectedSec: +env('MAX_EXPECTED_SECONDS', 3600),       // refuse names whose average search is longer
-  maxRunSec: +env('MAX_RUN_SECONDS', 6 * 3600),            // hard cap per job (each job also stops at 5x its average)
+  // Refuse names whose average search is longer: an hour for free searches, a week when every search is paid.
+  maxExpectedSec: +env('MAX_EXPECTED_SECONDS', env('PAY_TO', '') ? 7 * 86400 : 3600),
+  maxRunSec: +env('MAX_RUN_SECONDS', 6 * 3600),            // free jobs stop here or at 5x their average; paid ones at the longer
   maxQueue: +env('MAX_QUEUE', 25),
   maxUnpaid: +env('MAX_UNPAID', 50),                   // jobs waiting for payment at once (not counted in MAX_QUEUE)
   payWindowSec: +env('PAY_WINDOW_SECONDS', 900),      // how long a job waits for its payment
   maxJobsPerIp: +env('MAX_JOBS_PER_IP', 1),
   resultTtlSec: +env('RESULT_TTL_SECONDS', 3600),
-  paidResultTtlSec: +env('PAID_RESULT_TTL_SECONDS', 86400),
+  paidResultTtlSec: +env('PAID_RESULT_TTL_SECONDS', 7 * 86400),
   abandonSec: +env('ABANDON_SECONDS', 600),
+  sliceMs: +env('SLICE_SECONDS', 20) * 1000,                // a running search hands the engine over this often when others wait
   trustProxy: env('TRUST_PROXY', '0') === '1',
   payTo: env('PAY_TO', ''),                            // Solana address that receives Fast mode payments; empty = free
   priceSol: +env('PRICE_SOL', 0.01),                   // price per job...
@@ -46,6 +48,7 @@ const CFG = {
 if (!['mainnet', 'devnet', 'testnet'].includes(CFG.cluster)) throw new Error(`SOLANA_CLUSTER must be mainnet, devnet or testnet, not ${CFG.cluster}`);
 CFG.rpc = env('SOLANA_RPC', `https://api.${CFG.cluster === 'mainnet' ? 'mainnet-beta' : CFG.cluster}.solana.com`);
 CFG.paidFile = env('PAID_JOBS_FILE', path.join(ROOT, 'paid-jobs.json'));
+CFG.historyFile = env('HISTORY_FILE', path.join(ROOT, 'history.json'));
 const SITE = siteConfig();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString(), ...a);
@@ -319,37 +322,92 @@ function view(j) {
   };
 }
 
+// The engine takes turns: with other searches waiting, a running one hands over after SLICE_SECONDS and goes to the back
+// of the line, so a day-long search never holds up a one-minute one. A search has no memory, so nothing is lost.
 async function runNext() {
-  if (current || !queue.length) return;
-  const job = queue.shift();
-  current = job; job.status = 'running'; job.startedAt = Date.now();
-  // Free jobs stop at 5x their average; paid ones keep going to MAX_RUN_SECONDS so a slow run still delivers.
-  const limitMs = (job.paid ? CFG.maxRunSec : Math.min(CFG.maxRunSec, 5 / (job.a.p * engine.rate) + 120)) * 1000;
+  if (current) return;
+  let job;
+  do job = queue.shift(); while (job && !['queued', 'running'].includes(job.status));
+  if (!job) return;
+  current = job;
+  if (job.status !== 'running') { job.status = 'running'; job.startedAt = Date.now(); job.ranMs = 0; }
+  // Free jobs stop at 5x their average (or MAX_RUN_SECONDS); paid ones run to whichever is longer, so 99% of them
+  // finish. The limit counts only the engine's own time, not turns spent waiting.
+  const avg = 1 / (job.a.p * engine.rate);
+  const limitMs = (job.paid ? Math.max(CFG.maxRunSec, 5 * avg) : Math.min(CFG.maxRunSec, 5 * avg + 120)) * 1000;
+  const turn = Date.now(), ran0 = job.ranMs || 0, ran = () => ran0 + Date.now() - turn;
+  let yielded = false;
   try {
     const hit = await engine.grind(job,
-      () => job.status === 'running' && Date.now() - job.startedAt < limitMs,
+      () => {
+        if (job.status !== 'running' || ran() >= limitMs) return false;
+        if (queue.some(j => j.status === 'queued' || j.status === 'running') && Date.now() - turn >= CFG.sliceMs) { yielded = true; return false; }
+        return true;
+      },
       (n, rate) => { job.tries += n; job.rate = rate; });
+    job.ranMs = ran();
     if (hit && VP.matcher(job.a.pre.sets, job.a.suf.sets)(hit.address)) {
+      yielded = false;
       job.sealed = await seal(hit.secret, job.rsa);
       job.address = hit.address;
       hit.secret.fill(0);
       job.status = 'done';
+      remember(job);
       log(`job ${job.id.slice(0, 8)} done after ${job.tries.toLocaleString()} keys`);
+    } else if (yielded && job.status === 'running') {
+      queue.push(job);
     } else if (job.status === 'running') {
+      yielded = false;
       job.status = 'failed'; job.error = 'time-limit';
       if (job.paid) log(`job ${job.id.slice(0, 8)} hit the time limit; it was paid by ${job.paid.payer} (${job.paid.signature})`);
     }
   } catch (e) {
     log(`job ${job.id.slice(0, 8)} failed${job.paid ? `; it was paid by ${job.paid.payer} (${job.paid.signature})` : ''}`, e); job.status = 'failed'; job.error = 'engine';
+    yielded = false;
   } finally {
-    job.finishedAt = Date.now(); job.rsa = null; current = null;
+    if (!yielded) { job.finishedAt = Date.now(); job.rsa = null; }
+    current = null;
     if (job.paid) savePaid();
     setImmediate(runNext);
   }
 }
 
+/* ---------------- address history ---------------- */
+// Every paid address is kept with the wallet that paid for it, so whoever holds that wallet can list them on
+// My addresses from any device after signing a one-time message with it. Addresses only: keys are never kept.
+const history = (() => { try { const v = JSON.parse(readFileSync(CFG.historyFile, 'utf8')); return Array.isArray(v) ? v : []; } catch { return []; } })();
+function remember(job) {
+  if (!job.paid || !job.paid.payer || !job.address) return;
+  history.push({ payer: job.paid.payer, address: job.address, prefix: job.a.preRaw, suffix: job.a.sufRaw, at: Date.now() });
+  if (history.length > 100000) history.splice(0, history.length - 100000);
+  try { writeFileSync(CFG.historyFile + '.tmp', JSON.stringify(history)); renameSync(CFG.historyFile + '.tmp', CFG.historyFile); }
+  catch (e) { log('could not save the address history:', e.message); }
+}
+const challenges = new Map();   // nonce -> { wallet, message, exp }: a sign-in message waiting for its signature
+function historyChallenge(wallet, req) {
+  const t = Date.now();
+  for (const [n, c] of challenges) if (c.exp < t) challenges.delete(n);
+  if (challenges.size > 10000) return null;
+  const nonce = randomBytes(16).toString('hex'), host = new URL(SITE.url || origin(req)).host;
+  const message = `${host} wants you to sign in to see the addresses you made.\n\nWallet: ${wallet}\nNonce: ${nonce}\nIssued At: ${new Date(t).toISOString()}\n\nSigning is free and sends no transaction.`;
+  challenges.set(nonce, { wallet, message, exp: t + 5 * 60000 });
+  return message;
+}
+// The addresses a wallet paid for, if the signature over a fresh challenge is that wallet's; each challenge works once.
+async function historyFor(wallet, message, signature) {
+  const nonce = (String(message).match(/^Nonce: ([0-9a-f]{32})$/m) || [])[1], c = nonce && challenges.get(nonce);
+  if (!c || c.exp < Date.now() || c.message !== message || c.wallet !== wallet) return null;
+  challenges.delete(nonce);
+  try {
+    const key = await subtle.importKey('raw', b58dec(wallet), { name: 'Ed25519' }, false, ['verify']);
+    if (!await subtle.verify({ name: 'Ed25519' }, key, Buffer.from(String(signature), 'base64'), Buffer.from(message))) return null;
+  } catch { return null; }
+  return history.filter(h => h.payer === wallet).slice(-500).reverse().map(({ address, prefix, suffix, at }) => ({ address, prefix, suffix, at }));
+}
+
 function cancel(job, reason) {
-  if (job.status === 'queued' || job.status === 'unpaid') { const i = queue.indexOf(job); if (i >= 0) queue.splice(i, 1); job.finishedAt = Date.now(); }
+  const i = queue.indexOf(job); if (i >= 0) queue.splice(i, 1);
+  if (job.status === 'queued' || job.status === 'unpaid' || (job.status === 'running' && job !== current)) job.finishedAt = Date.now();
   if (job.status === 'queued' || job.status === 'running' || job.status === 'unpaid') { job.status = 'canceled'; job.error = reason; job.rsa = null; }
   if (job.paid) savePaid();
 }
@@ -429,6 +487,7 @@ async function createJob(req, res) {
 async function serveStatic(req, res, urlPath) {
   let rel = decodeURIComponent(urlPath);
   if (rel === '/' || rel === '') rel = '/index.html';
+  if (rel === '/addresses' || rel === '/legal') rel += '.html';   // the pages' own addresses carry no .html
   const isEngine = rel.startsWith('/engine/');
   const baseDir = isEngine ? path.join(ROOT, 'engine') : path.join(ROOT, 'public');
   const file = path.normalize(path.join(baseDir, isEngine ? rel.slice('/engine/'.length) : rel));
@@ -467,6 +526,19 @@ const server = http.createServer(async (req, res) => {
         const r = await rpc('getMultipleAccounts', [list, { commitment: 'confirmed', encoding: 'base64', dataSlice: { offset: 0, length: 0 } }]);
         return send(res, 200, { balances: Object.fromEntries(list.map((a, i) => [a, (r.value[i] && r.value[i].lamports) || 0])) });
       } catch (e) { log('balances failed:', e.message); return send(res, 502, { error: 'rpc' }); }
+    }
+    // My addresses: sign in with the paying wallet to list the addresses it paid for.
+    if ((p === '/api/history/challenge' || p === '/api/history') && req.method === 'POST') {
+      let body;
+      try { body = await readJson(req, 4096); } catch { return send(res, 400, { error: 'bad-request' }); }
+      const wallet = String(body.wallet || '');
+      if ((b58dec(wallet) || []).length !== 32) return send(res, 400, { error: 'bad-wallet' });
+      if (p === '/api/history/challenge') {
+        const message = historyChallenge(wallet, req);
+        return message ? send(res, 200, { message }) : send(res, 503, { error: 'busy' });
+      }
+      const addresses = await historyFor(wallet, body.message, body.signature);
+      return addresses ? send(res, 200, { addresses }) : send(res, 401, { error: 'not-signed' });
     }
     if (p === '/api/jobs' && req.method === 'POST') return createJob(req, res);
     const m = p.match(/^\/api\/jobs\/([0-9a-f]{32})(\/paid|\/send)?$/);

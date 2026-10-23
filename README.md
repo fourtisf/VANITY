@@ -100,14 +100,15 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Where to listen. Behind Nginx on the same machine use `HOST=127.0.0.1`, so nobody can skip Nginx |
 | `ENGINE` | `auto` | `auto`, `gpu` or `cpu` |
 | `CPU_THREADS` | all cores | Threads for the CPU fallback |
-| `MAX_EXPECTED_SECONDS` | `3600` | Refuse names whose average search on this server is longer |
-| `MAX_RUN_SECONDS` | `21600` | Hard cap per job. Free jobs also stop at 5× their average; paid ones run to this cap |
+| `MAX_EXPECTED_SECONDS` | `3600`, or a week with `PAY_TO` | Refuse names whose average search on this server is longer |
+| `SLICE_SECONDS` | `20` | With others waiting, a running search hands the engine over this often and rejoins the line, so a long search never holds up short ones |
+| `MAX_RUN_SECONDS` | `21600` | Free jobs stop here or at 5× their average, whichever comes first; paid ones at whichever comes last (5× the average finds 99% of them) |
 | `MAX_QUEUE` | `25` | Jobs waiting to run at once |
 | `MAX_UNPAID` | `50` | Jobs waiting for their payment at once (separate from `MAX_QUEUE`) |
 | `PAY_WINDOW_SECONDS` | `900` | How long a job waits for its payment |
 | `MAX_JOBS_PER_IP` | `1` | Active jobs per visitor |
 | `RESULT_TTL_SECONDS` | `3600` | How long a finished, sealed result is kept in memory |
-| `PAID_RESULT_TTL_SECONDS` | `86400` | The same for paid jobs |
+| `PAID_RESULT_TTL_SECONDS` | `604800` | The same for paid jobs (a week, for long searches) |
 | `ABANDON_SECONDS` | `600` | Cancel jobs whose page stopped checking in |
 | `TRUST_PROXY` | `0` | Set `1` behind Nginx so per-IP limits use `X-Forwarded-For` |
 | `PAY_TO` | empty | Solana address that receives payments. Empty keeps every search free. Set, every search is paid and runs on this server (see `DEVICE_SEARCH`) |
@@ -117,6 +118,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
 | `SOLANA_RPC` | public RPC of the cluster | The public RPC is rate-limited; use a provider URL (Helius, QuickNode, Triton) in production |
 | `PAID_JOBS_FILE` | `./paid-jobs.json` | Where paid jobs wait across restarts (no keys or results, see below) |
+| `HISTORY_FILE` | `./history.json` | Each paid address with the wallet that paid for it, listed on My addresses once that wallet signs in (no keys) |
 | `SITE_NAME` | `Plates` | Brand shown in the header, title and link previews |
 | `SITE_URL` | from the request | Public address (`https://getplates.fun`), used in link previews |
 | `CONTACT_EMAIL` / `CONTACT_TELEGRAM` | empty | Shown in the footer, the legal page and refund messages. Set one before taking payments |
@@ -153,7 +155,7 @@ The header has a Connect wallet button for every visitor, paid Fast mode or not;
 3. The page builds one System Program transfer to `PAY_TO` that lists the reference as an extra read-only account, and the wallet signs and sends it. The page reports the signature (`POST /api/jobs/:id/paid`) and the server checks it every 2 seconds. It also looks the reference up on chain every 10 seconds, which finds a payment whose page closed before reporting it.
 4. The server accepts a confirmed, successful transaction that lists the reference and raised `PAY_TO`'s balance by at least the price. Each transaction pays for one job only.
 5. If the wallet cannot send the transfer itself but can sign it, the page posts the signed transaction to `POST /api/jobs/:id/send`. The server sends it through `SOLANA_RPC` only if it is exactly that job's payment: one signer, one System transfer of at least the price to `PAY_TO` listing the reference, and nothing else but compute budget instructions.
-5. The job then joins the queue. Paid jobs run until they find the address (up to `MAX_RUN_SECONDS`), keep running if the page closes or loses its connection, and survive a server restart through `PAID_JOBS_FILE`. The page picks the result up when it comes back, within `PAID_RESULT_TTL_SECONDS` of the finish.
+5. The job then joins the queue, which takes turns (`SLICE_SECONDS`). Paid jobs run until they find the address (up to `MAX_RUN_SECONDS` or 5× their average, whichever is longer), keep running if the page closes or loses its connection, and survive a server restart through `PAID_JOBS_FILE`. The page picks the result up when it comes back, within `PAID_RESULT_TTL_SECONDS` of the finish.
 
 There are no automatic refunds. A paid job that fails is logged with the payer and the transaction signature, and the page shows the visitor that transaction and your contact, so you can refund by hand (`grep "hit the time limit\|job failed" ~/.pm2/logs/vanity-out.log`). Unpaid jobs are dropped when their window closes or after `ABANDON_SECONDS` without a check-in, after one last look for the payment.
 

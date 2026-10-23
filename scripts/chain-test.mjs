@@ -25,7 +25,7 @@ await import('../engine/pattern.js');
 const VP = globalThis.VanityPattern;
 const PAID_JOBS_FILE = path.join(tmpdir(), `vanity-chain-${process.pid}.json`);
 let server, browser;
-const fail = msg => { console.error('FAIL:', msg); server?.kill(); browser?.close(); rmSync(PAID_JOBS_FILE, { force: true }); process.exit(1); };
+const fail = msg => { console.error('FAIL:', msg); server?.kill(); browser?.close(); rmSync(PAID_JOBS_FILE, { force: true }); rmSync(PAID_JOBS_FILE + '.history', { force: true }); process.exit(1); };
 const check = (ok, what) => { if (!ok) fail(what); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -50,7 +50,7 @@ const port = 20000 + Math.floor(Math.random() * 20000), base = `http://127.0.0.1
 const logs = [];
 server = spawn(process.execPath, [path.join(root, 'server.js')], {
   env: { ...process.env, ENV_FILE: path.join(tmpdir(), 'no-such.env'), ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(port),
-    PAY_TO: receiver.toBase58(), PAID_JOBS_FILE, SOLANA_RPC: rpcUrl, SOLANA_CLUSTER: /devnet/.test(rpcUrl) ? 'devnet' : 'mainnet',
+    PAY_TO: receiver.toBase58(), PAID_JOBS_FILE, HISTORY_FILE: PAID_JOBS_FILE + '.history', SOLANA_RPC: rpcUrl, SOLANA_CLUSTER: /devnet/.test(rpcUrl) ? 'devnet' : 'mainnet',
     CONTACT_EMAIL: 'help@getplates.fun' },
   stdio: ['ignore', 'pipe', 'inherit'],
 });
@@ -136,5 +136,5 @@ for (const sig of sent) {
 }
 console.log(`on chain: receiver got ${received / 1e9} SOL from 2 transactions; both are in the server log as payments`);
 
-await browser.close(); server.kill(); rmSync(PAID_JOBS_FILE, { force: true });
+await browser.close(); server.kill(); rmSync(PAID_JOBS_FILE, { force: true }); rmSync(PAID_JOBS_FILE + '.history', { force: true });
 console.log('ALL CHAIN CHECKS PASSED');

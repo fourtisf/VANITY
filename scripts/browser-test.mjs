@@ -6,7 +6,7 @@
 import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createPrivateKey, sign } from 'node:crypto';
 import { mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,7 @@ const VP = globalThis.VanityPattern;
 const key = () => VP.b58(randomBytes(32));
 const PAID_JOBS_FILE = path.join(tmpdir(), `vanity-browser-${process.pid}.json`);
 let server, browser;
-const fail = msg => { console.error('FAIL:', msg); server?.kill(); browser?.close(); rmSync(PAID_JOBS_FILE, { force: true }); process.exit(1); };
+const fail = msg => { console.error('FAIL:', msg); server?.kill(); browser?.close(); rmSync(PAID_JOBS_FILE, { force: true }); rmSync(PAID_JOBS_FILE + '.history', { force: true }); process.exit(1); };
 const check = (ok, what) => { if (!ok) fail(what); };
 
 /* ---- fake RPC ---- */
@@ -42,7 +42,7 @@ await new Promise(r => rpc.listen(0, '127.0.0.1', r));
 
 const port = 20000 + Math.floor(Math.random() * 20000), base = `http://127.0.0.1:${port}`;
 server = spawn(process.execPath, [path.join(root, 'server.js')], {
-  env: { ...process.env, ENV_FILE: path.join(tmpdir(), 'no-such.env'), ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(port), PAY_TO, PAID_JOBS_FILE,
+  env: { ...process.env, ENV_FILE: path.join(tmpdir(), 'no-such.env'), ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(port), PAY_TO, PAID_JOBS_FILE, HISTORY_FILE: PAID_JOBS_FILE + '.history',
     SITE_NAME: 'Test Vanity', SITE_URL: 'https://vanity.example', CONTACT_EMAIL: 'help@vanity.example', SOLANA_RPC: `http://127.0.0.1:${rpc.address().port}` },
   stdio: ['ignore', 'pipe', 'inherit'],
 });
@@ -50,6 +50,8 @@ await new Promise(r => server.stdout.on('data', d => { if (String(d).includes('l
 
 /* ---- the "wallet": refuses the first payment, then signs and lands the transaction once released ---- */
 const payer = web3.Keypair.generate();
+const payerKey = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.from(payer.secretKey.slice(0, 32))]), format: 'der', type: 'pkcs8' });
+const signMsg = async bytes => Array.from(sign(null, Buffer.from(bytes), payerKey));
 let calls = 0, sent = null, release;
 const sentAll = [];
 const approved = new Promise(r => { release = r; });
@@ -104,6 +106,7 @@ const fakeWallet = (name, address, pub) => {
       'standard:connect': { version: '1.0.0', connect: async ({ silent } = {}) => { window.__connects = (window.__connects || 0) + 1; return { accounts: silent ? [] : [account] }; } },
       'solana:signAndSendTransaction': { version: '1.0.0', supportedTransactionVersions: ['legacy', 0],
         signAndSendTransaction: async ({ transaction, chain }) => [{ signature: new Uint8Array(await window.__sendTx(Array.from(transaction), chain)) }] },
+      'solana:signMessage': { version: '1.0.0', signMessage: async ({ message }) => [{ signedMessage: message, signature: new Uint8Array(await window.__signMsg(Array.from(message))) }] },
     },
   };
   const cb = ({ register }) => register(wallet);
@@ -117,6 +120,7 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
 page.on('pageerror', e => fail('page error: ' + e.message));
 page.on('request', r => { if (!/^(blob|data):/.test(r.url()) && !r.url().startsWith(base)) fail('page reached outside its own server: ' + r.url()); });
 await page.exposeFunction('__sendTx', sendTx);
+await page.exposeFunction('__signMsg', signMsg);
 // "Phantom" is installed before the page loads (app-ready path); "Late Wallet" registers after (register-wallet path).
 await page.addInitScript(walletArgs('Phantom'));
 await page.goto(base + '/', { waitUntil: 'load' });
@@ -221,10 +225,10 @@ await page.locator('.res').screenshot({ path: path.join(shots, 'result-add-sol.p
 console.log('Add SOL: refused until the key is saved, then a plain transfer to the new address: ok');
 
 /* ---- My addresses: the new address is listed in this browser, with its key marked saved and its balance on request ---- */
-check(await page.isVisible('.res .sub a[href="addresses.html"]'), 'result does not link to My addresses');
+check(await page.isVisible('.res .sub a[href="addresses"]'), 'result does not link to My addresses');
 lamportsOf.set(address.trim(), 5e7);
 const mine = page;   // the key was copied, so leaving the result page asks nothing
-await mine.goto(base + '/addresses.html', { waitUntil: 'load' });
+await mine.goto(base + '/addresses', { waitUntil: 'load' });
 const item = mine.locator(`.item[data-addr="${address.trim()}"]`);
 await item.waitFor({ timeout: 5000 }).catch(() => fail('new address not in My addresses'));
 check(/Wallet/.test(await item.textContent()) && /Key saved/.test(await item.textContent()), 'My addresses tags: ' + await item.textContent());
@@ -253,8 +257,13 @@ check(/Wallet/.test(await mine.textContent(`.item[data-addr="${listed}"]`)), 'li
 await mine.fill('#paste', pasted); await mine.click('#pasteBtn');
 await mine.waitForSelector(`.item[data-addr="${pasted}"]`, { timeout: 5000 }).catch(() => fail('pasted address not added'));
 check(await mine.locator('.item').count() === 3, 'three addresses after adding');
+// History: the wallet that paid signs in, and the address it paid for (removed above) comes back, marked as paid.
+await mine.waitForSelector('#walletBox:not([hidden])', { timeout: 10000 }).catch(() => fail('no wallet history box on a paid site'));
+await mine.click('#walletBtn');
+await mine.waitForSelector(`.item[data-addr="${address.trim()}"]`, { timeout: 10000 }).catch(async () => fail('paid address not loaded from the wallet: ' + await mine.textContent('#walletMsg')));
+check(/Paid with/.test(await mine.textContent(`.item[data-addr="${address.trim()}"]`)) && /paid for 1 address; 1 added/.test(await mine.textContent('#walletMsg')), 'wallet history: ' + await mine.textContent('#walletMsg'));
 await mine.screenshot({ path: path.join(shots, 'my-addresses-added.png'), fullPage: true });
-console.log('My addresses: listed with key saved, balance on request, remove, add from files, a list and a paste: ok');
+console.log('My addresses: listed with key saved, balance on request, remove, add from files, a list and a paste, history from the paying wallet: ok');
 
 /* ---- a wallet that can only sign (Bitget's "[object Object]"): the server sends its signed payment ---- */
 const bp = await browser.newPage();
@@ -350,10 +359,10 @@ console.log('free Fast mode: header wallet, no payment, Add SOL: ok');
 
 /* ---- legal page ---- */
 const legal = await browser.newPage();
-await legal.goto(base + '/legal.html#refunds', { waitUntil: 'load' });
+await legal.goto(base + '/legal#refunds', { waitUntil: 'load' });
 check((await legal.textContent('#refunds')).includes('help@vanity.example') && !(await legal.content()).includes('{{'), 'legal page not filled in');
 check((await legal.textContent('#terms')).includes('The search runs on our server') && !(await legal.content()).includes('On-device searches'), 'paid legal page still describes free on-device searches');
 console.log('legal page: ok');
 
-await browser.close(); server.kill(); rpc.close(); rmSync(PAID_JOBS_FILE, { force: true });
+await browser.close(); server.kill(); rpc.close(); rmSync(PAID_JOBS_FILE, { force: true }); rmSync(PAID_JOBS_FILE + '.history', { force: true });
 console.log('ALL BROWSER CHECKS PASSED');
