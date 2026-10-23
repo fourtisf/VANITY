@@ -57,10 +57,17 @@ h2{font:700 24px var(--display);margin:0 0 6px}
 .bal{font-family:var(--mono);color:var(--text)}
 .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .acts a{text-decoration:none}
-#empty{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:26px 28px}
+#empty,.add{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:26px 28px}
 #empty p{color:var(--muted);margin:0}
+.add{margin-top:22px}
+.add p{color:var(--muted);margin:0 0 14px;font-size:15.5px}
+.addrow{display:flex;flex-wrap:wrap;gap:10px}
+.addrow input[type=text]{flex:1 1 260px;min-width:0;background:var(--well);border:1px solid var(--line2);color:var(--text);border-radius:12px;padding:8px 14px;font:500 15px var(--mono)}
+.addrow input[type=text]:focus{outline:none;border-color:var(--teal)}
+.addmsg{margin:12px 0 0!important;color:var(--text)!important}
+.addmsg[hidden]{display:none}
 .fine{margin-top:30px;color:var(--dim);font-size:14.5px}
-@media (max-width:640px){ .item{padding:16px} #empty{padding:20px 18px} .addr{font-size:15px} }
+@media (max-width:640px){ .item{padding:16px} #empty,.add{padding:20px 18px} .addr{font-size:15px} }
 </style>
 </head>
 <body>
@@ -84,7 +91,19 @@ h2{font:700 24px var(--display);margin:0 0 6px}
 
   <section id="empty" hidden>
     <h2>Nothing here yet</h2>
-    <p>Addresses you make in this browser show up here by themselves. <a href="./#make">Make your first one</a>.</p>
+    <p>Addresses you make in this browser show up here by themselves. <a href="./#make">Make your first one</a>, or add the ones you made before below.</p>
+  </section>
+
+  <section class="add" id="add">
+    <h2>Add addresses you made before</h2>
+    <p>Addresses made before this list existed, or in another browser, are not in it yet. Choose the keypair files you downloaded (each is named after its address, usually in your Downloads folder) or a list downloaded from this page, or paste an address. Keypair files are only read here to find their address: the key is not saved or sent anywhere.</p>
+    <div class="addrow">
+      <label class="btn" for="files">Choose files</label>
+      <input type="file" id="files" accept=".json,.csv,application/json,text/csv" multiple hidden>
+      <input type="text" id="paste" placeholder="Or paste an address" autocomplete="off" spellcheck="false" aria-label="Address to add">
+      <button type="button" class="btn" id="pasteBtn">Add</button>
+    </div>
+    <p class="addmsg" id="addMsg" hidden></p>
   </section>
 
   <p class="fine">Show balances sends these addresses to our server, which looks them up on Solana. Clearing your browser's site data also clears this list, so use Download list to keep a copy.</p>
@@ -99,6 +118,10 @@ h2{font:700 24px var(--display);margin:0 0 6px}
   };
   const save = list => { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch {} };
   const sol = lamports => (lamports / 1e9).toFixed(9).replace(/\.?0+$/, '');
+  const ALPH = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  function b58(b){let z=0;while(z<b.length&&b[z]===0)z++;const d=[0];for(let i=z;i<b.length;i++){let c=b[i];for(let j=0;j<d.length;j++){c+=d[j]<<8;d[j]=c%58;c=(c/58)|0;}while(c){d.push(c%58);c=(c/58)|0;}}let s='';for(let k=0;k<z;k++)s+='1';for(let k=d.length-1;k>=0;k--)s+=ALPH[d[k]];return s;}
+  function b58len(s){let n=0n;for(const c of s){const d=ALPH.indexOf(c);if(d<0)return -1;n=n*58n+BigInt(d);}let len=0;while(n){len++;n>>=8n;}for(const c of s){if(c!=='1')break;len++;}return len;}
+  const isAddress = s => ADDR.test(s) && b58len(s) === 32;
   let cluster = 'mainnet', balances = null;
 
   function render(){
@@ -106,7 +129,7 @@ h2{font:700 24px var(--display);margin:0 0 6px}
     $('empty').hidden = !!list.length; $('bar').hidden = !list.length;
     $('count').textContent = `${list.length} ${list.length === 1 ? 'address' : 'addresses'}`;
     $('total').textContent = balances ? `${sol(list.reduce((t, x) => t + (balances[x.address] || 0), 0))} SOL in total` : '';
-    const unsaved = list.filter(x => !x.keySaved).length;
+    const unsaved = list.filter(x => x.keySaved === false).length;
     $('msg').hidden = !unsaved;
     $('msg').textContent = unsaved ? `${unsaved === 1 ? 'One address was' : unsaved + ' addresses were'} made without copying or downloading the key. If that page is closed, nobody can use ${unsaved === 1 ? 'it' : 'them'}, so do not send SOL there.` : '';
     $('list').innerHTML = list.map(x => {
@@ -115,7 +138,7 @@ h2{font:700 24px var(--display);margin:0 0 6px}
       const made = isFinite(x.at) ? new Date(x.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
       return `<article class="item" data-addr="${a}">
         <div class="addr"><span class="p">${a.slice(0, pl)}</span>${a.slice(pl, a.length - sl)}<span class="s">${a.slice(a.length - sl)}</span></div>
-        <div class="meta"><span class="tag">${x.mode === 'token' ? 'Token mint' : 'Wallet'}</span>${x.keySaved ? '<span class="tag ok">Key saved</span>' : '<span class="tag warn">Key not saved</span>'}${made ? `<span>Made ${made}</span>` : ''}${balances && a in balances ? `<span class="bal">${sol(balances[a])} SOL</span>` : ''}</div>
+        <div class="meta"><span class="tag">${x.mode === 'token' ? 'Token mint' : x.mode === 'wallet' ? 'Wallet' : x.source === 'file' ? 'From a keypair file' : 'Added by hand'}</span>${x.keySaved === true ? '<span class="tag ok">Key saved</span>' : x.keySaved === false ? '<span class="tag warn">Key not saved</span>' : ''}${made ? `<span>${x.source === 'manual' ? 'Added' : 'Made'} ${made}</span>` : ''}${balances && a in balances ? `<span class="bal">${sol(balances[a])} SOL</span>` : ''}</div>
         <div class="acts"><button type="button" class="btn" data-act="copy">Copy address</button><a class="btn" href="${scan}" target="_blank" rel="noopener">Solscan</a><button type="button" class="btn danger" data-act="del">Remove</button></div>
       </article>`;
     }).join('');
@@ -134,7 +157,7 @@ h2{font:700 24px var(--display);margin:0 0 6px}
   $('csvBtn').addEventListener('click', () => {
     const rows = [['address', 'type', 'starts_with', 'ends_with', 'made', 'key_saved']].concat(load().map(x => {
       const pl = Math.max(0, x.pl | 0), sl = Math.max(0, x.sl | 0);
-      return [x.address, x.mode === 'token' ? 'token' : 'wallet', x.address.slice(0, pl), sl ? x.address.slice(-sl) : '', isFinite(x.at) ? new Date(x.at).toISOString() : '', x.keySaved ? 'yes' : 'no'];
+      return [x.address, x.mode === 'token' ? 'token' : 'wallet', x.address.slice(0, pl), sl ? x.address.slice(-sl) : '', isFinite(x.at) ? new Date(x.at).toISOString() : '', x.keySaved === true ? 'yes' : x.keySaved === false ? 'no' : ''];
     }));
     const blob = new Blob([rows.map(r => r.join(',')).join('\n') + '\n'], { type: 'text/csv' });
     const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'my-addresses.csv';
@@ -150,6 +173,67 @@ h2{font:700 24px var(--display);margin:0 0 6px}
     } catch { b.textContent = 'Could not check, try again'; }
     b.disabled = false; render();
   });
+  /* ---- adding addresses made before ---- */
+  // Adds entries not in the list yet and keeps the list newest first. Returns how many were new.
+  function addAll(entries){
+    const list = load(), have = new Set(list.map(x => x.address));
+    const fresh = entries.filter(x => !have.has(x.address) && have.add(x.address));
+    save(list.concat(fresh).sort((a, b) => (b.at || 0) - (a.at || 0)));
+    if (fresh.length && balances){ balances = null; $('balBtn').textContent = 'Show balances'; }   // the total would leave the new ones out
+    render();
+    return fresh.length;
+  }
+  // A keypair file is the 64-byte secret key (seed, then public key) as a JSON array. Its address counts only
+  // if a signature made with the seed checks out against the public key in the file.
+  async function keypairAddress(arr){
+    if (!Array.isArray(arr) || arr.length !== 64 || arr.some(n => !Number.isInteger(n) || n < 0 || n > 255)) throw new Error('not a keypair file');
+    const sk = Uint8Array.from(arr), pub = sk.slice(32);
+    const p8 = new Uint8Array([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20, ...sk.subarray(0, 32)]);
+    sk.fill(0);
+    try {
+      const priv = await crypto.subtle.importKey('pkcs8', p8, { name: 'Ed25519' }, false, ['sign']);
+      const msg = new TextEncoder().encode('plates address check');
+      const sig = await crypto.subtle.sign({ name: 'Ed25519' }, priv, msg);
+      const pk = await crypto.subtle.importKey('raw', pub, { name: 'Ed25519' }, false, ['verify']);
+      if (!await crypto.subtle.verify({ name: 'Ed25519' }, pk, sig, msg)) throw new Error('its key and address do not match');
+    } finally { p8.fill(0); }
+    return b58(pub);
+  }
+  function csvEntries(text){
+    const rows = text.trim().split(/\r?\n/).map(r => r.split(',').map(c => c.trim()));
+    const head = rows[0] || [], col = name => head.indexOf(name);
+    if (col('address') < 0) throw new Error('not a list from this page');
+    return rows.slice(1).filter(r => isAddress(r[col('address')] || '')).map(r => {
+      const a = r[col('address')], pre = r[col('starts_with')] || '', suf = r[col('ends_with')] || '', at = Date.parse(r[col('made')] || '');
+      const saved = r[col('key_saved')];
+      return { address: a, mode: ['wallet', 'token'].includes(r[col('type')]) ? r[col('type')] : undefined,
+        pl: a.startsWith(pre) ? pre.length : 0, sl: suf && a.endsWith(suf) ? suf.length : 0, at: isFinite(at) ? at : Date.now(),
+        keySaved: saved === 'yes' ? true : saved === 'no' ? false : undefined, source: 'list' };
+    });
+  }
+  const addMsg = t => { $('addMsg').textContent = t; $('addMsg').hidden = !t; };
+  $('files').addEventListener('change', async e => {
+    const files = [...e.target.files], entries = [], skipped = [];
+    for (const f of files){
+      try {
+        const text = await f.text();
+        if (/\.csv$/i.test(f.name) || /^address,/.test(text)) entries.push(...csvEntries(text));
+        else entries.push({ address: await keypairAddress(JSON.parse(text)), pl: 0, sl: 0, at: f.lastModified || Date.now(), keySaved: true, source: 'file' });
+      } catch (err) { skipped.push(`${f.name} (${err instanceof SyntaxError ? 'not a keypair file' : err.message})`); }
+    }
+    e.target.value = '';
+    const n = addAll(entries), dup = entries.length - n;
+    addMsg([n ? `Added ${n} ${n === 1 ? 'address' : 'addresses'}.` : 'Nothing new to add.', dup ? `${dup} already in the list.` : '', skipped.length ? `Skipped: ${skipped.join(', ')}.` : ''].filter(Boolean).join(' '));
+  });
+  const addPasted = () => {
+    const a = $('paste').value.trim();
+    if (!isAddress(a)){ addMsg('That is not a Solana address.'); return; }
+    addMsg(addAll([{ address: a, pl: 0, sl: 0, at: Date.now(), source: 'manual' }]) ? 'Added.' : 'That address is already in the list.');
+    $('paste').value = '';
+  };
+  $('pasteBtn').addEventListener('click', addPasted);
+  $('paste').addEventListener('keydown', e => { if (e.key === 'Enter') addPasted(); });
+
   // Another tab of the site may add an address while this page is open.
   window.addEventListener('storage', e => { if (e.key === KEY || e.key === null) render(); });
   fetch('api/status', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(s => {

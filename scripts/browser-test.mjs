@@ -195,7 +195,26 @@ await mine.screenshot({ path: path.join(shots, 'my-addresses.png'), fullPage: tr
 mine.once('dialog', d => d.accept());
 await item.locator('[data-act="del"]').click();
 await mine.waitForSelector('#empty:not([hidden])', { timeout: 5000 }).catch(() => fail('Remove did not empty the list'));
-console.log('My addresses: listed with key saved, balance on request, remove: ok');
+// Addresses made before: a downloaded keypair file (its key is checked against its address), a broken one,
+// a downloaded list, and a pasted address.
+const kp = web3.Keypair.generate(), broken = Array.from(web3.Keypair.generate().secretKey), listed = key(), pasted = key();
+broken[63] ^= 1;
+await mine.setInputFiles('#files', [
+  { name: kp.publicKey.toBase58() + '.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(Array.from(kp.secretKey))) },
+  { name: 'broken.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(broken)) },
+  { name: 'my-addresses.csv', mimeType: 'text/csv', buffer: Buffer.from(`address,type,starts_with,ends_with,made,key_saved\n${listed},wallet,${listed.slice(0, 2)},,2026-10-20T10:00:00.000Z,yes\n`) },
+]);
+await mine.waitForFunction(() => /Added 2 addresses/.test(document.querySelector('#addMsg').textContent), null, { timeout: 5000 })
+  .catch(async () => fail('import: ' + await mine.textContent('#addMsg')));
+check(/Skipped: broken\.json \(its key and address do not match\)/.test(await mine.textContent('#addMsg')), 'broken keypair file not refused: ' + await mine.textContent('#addMsg'));
+const fromFile = await mine.textContent(`.item[data-addr="${kp.publicKey.toBase58()}"]`);
+check(/From a keypair file/.test(fromFile) && /Key saved/.test(fromFile), 'keypair file entry: ' + fromFile);
+check(/Wallet/.test(await mine.textContent(`.item[data-addr="${listed}"]`)), 'list entry missing');
+await mine.fill('#paste', pasted); await mine.click('#pasteBtn');
+await mine.waitForSelector(`.item[data-addr="${pasted}"]`, { timeout: 5000 }).catch(() => fail('pasted address not added'));
+check(await mine.locator('.item').count() === 3, 'three addresses after adding');
+await mine.screenshot({ path: path.join(shots, 'my-addresses-added.png'), fullPage: true });
+console.log('My addresses: listed with key saved, balance on request, remove, add from files, a list and a paste: ok');
 
 /* ---- phone without a wallet: reopen the page inside the wallet app ---- */
 const phone = await browser.newContext({ ...devices['iPhone 13'] });
