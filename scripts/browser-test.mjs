@@ -212,17 +212,12 @@ check(sent.extra.length === 1 && !sent.extra[0].signer && !sent.extra[0].writabl
 check(/^[Aa]/.test(address) && await page.isHidden('#paybox'), 'result');
 console.log(`connect wallet, refused then approved payment, delivery: ok (${address})`);
 
-/* ---- Add SOL: a plain transfer from the connected wallet to the new address, only once the key is saved ---- */
-await page.click('.res [data-act="fund"]');
-await page.waitForFunction(() => /Save the private key first/.test(document.querySelector('.res [data-fundmsg]').textContent), null, { timeout: 5000 }).catch(() => fail('Add SOL ran before the key was saved'));
+/* ---- the result: address and key only, and My addresses opens in its own tab so an unsaved key stays here ---- */
+check(await page.locator('.res [data-act="fund"]').count() === 0, 'result still offers Add SOL');
+check(await page.getAttribute('.res .sub a[href="addresses"]', 'target') === '_blank' && await page.getAttribute('nav.nav a[href="addresses"]', 'target') === '_blank', 'My addresses would leave the result page');
 await page.click('.res [data-act="copyKey"]');
-await page.fill('.res [data-amt]', '0.05');
-await page.click('.res [data-act="fund"]');
-await page.waitForFunction(() => /Sent 0\.05 SOL/.test(document.querySelector('.res [data-fundmsg]').textContent), null, { timeout: 15000 }).catch(async () => fail('Add SOL: ' + await page.textContent('.res [data-fundmsg]')));
-const fund = sentAll[1];
-check(fund && fund.from === payer.publicKey.toBase58() && fund.to === address.trim() && fund.lamports === 5e7 && fund.extra.length === 0, 'Add SOL transfer: ' + JSON.stringify(fund));
-await page.locator('.res').screenshot({ path: path.join(shots, 'result-add-sol.png') });
-console.log('Add SOL: refused until the key is saved, then a plain transfer to the new address: ok');
+await page.locator('.res').screenshot({ path: path.join(shots, 'result.png') });
+console.log('result: no Add SOL, My addresses opens in a new tab: ok');
 
 /* ---- My addresses: the new address is listed in this browser, with its key marked saved and its balance on request ---- */
 check(await page.isVisible('.res .sub a[href="addresses"]'), 'result does not link to My addresses');
@@ -308,7 +303,7 @@ await app.waitForFunction(() => document.querySelector('#fast').getAttribute('ar
 check(await app.inputValue('#pre') === 'Ab' && await app.inputValue('#suf') === 'x' && !app.url().includes('#fast'), 'fields not restored from the wallet link');
 console.log('phone: wallet app links and reopened page: ok');
 
-/* ---- free Fast mode (no PAY_TO): the header wallet and Add SOL are still there ---- */
+/* ---- free Fast mode (no PAY_TO): the header wallet is still there ---- */
 const freePort = port + 1;
 const freeServer = spawn(process.execPath, [path.join(root, 'server.js')], {
   env: { ...process.env, ENV_FILE: path.join(tmpdir(), 'no-such.env'), ENGINE: 'cpu', CPU_THREADS: '2', HOST: '127.0.0.1', PORT: String(freePort), PAY_TO: '',
@@ -352,10 +347,10 @@ await fp.click('#fast'); await fp.fill('#pre', 'A');
 await fp.waitForSelector('#go:not([disabled])', { timeout: 30000 });
 await fp.click('#go');
 await fp.waitForSelector('.res', { timeout: 60000 }).catch(() => fail('free Fast mode gave no result'));
-check(await fp.isHidden('#paybox') && await fp.isVisible('.res [data-act="fund"]'), 'free mode: no pay box, Add SOL offered');
+check(await fp.isHidden('#paybox') && await fp.isVisible('.res'), 'free mode: no pay box');
 check(/Your own graphics card finds it/.test(await fp.textContent('.hero p')), 'free site lost its on-device wording');
 freeServer.kill();
-console.log('free Fast mode: header wallet, no payment, Add SOL: ok');
+console.log('free Fast mode: header wallet, no payment: ok');
 
 /* ---- legal page ---- */
 const legal = await browser.newPage();

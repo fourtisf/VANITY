@@ -15,7 +15,7 @@ A website that creates Solana wallet or token addresses starting or ending with 
 |---|---|
 | `server.js` | Node server: serves `public/` and `engine/`, runs the Fast mode job queue (`/api/*`) and payments |
 | `site.js` | Site name, contact and links from the environment, filled into `{{NAME}}` placeholders in the pages |
-| `public/index.html` | The whole website (HTML, CSS, app JS), including Connect wallet (header), Fast mode payment and Add SOL |
+| `public/index.html` | The whole website (HTML, CSS, app JS), including Connect wallet (header) and Fast mode payment |
 | `public/legal.html` | Terms, privacy and refund policy templates |
 | `public/addresses.html` | My addresses (served at `/addresses`): every address made in this browser (localStorage), plus every address a wallet paid for after it signs in (`/api/history`, signed message); balances on request through `/api/balances`. Addresses only, never keys |
 | `engine/vanity.wgsl` | GPU shader: SHA-512, ed25519, base58 checks. Shared by browser and server |

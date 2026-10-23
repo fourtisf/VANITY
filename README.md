@@ -146,7 +146,7 @@ The server still sees each key for a moment while sealing it. The website says t
 
 ## Connect wallet
 
-The header has a Connect wallet button for every visitor, paid Fast mode or not; it needs nothing from the site owner. It lists the wallets installed in the browser (Wallet Standard) with their logos, plus Phantom, Solflare and Backpack to install or to open the page in on a phone. Once connected, the header shows the wallet and its short address, with Copy address, Change wallet and Disconnect. The same connection pays for Fast mode, and on a new wallet address the result card offers Add SOL: a plain transfer from the connected wallet to that address, allowed only after the visitor has saved the private key. Token mint addresses get no Add SOL, since a mint must stay empty until the token is created.
+The header has a Connect wallet button for every visitor, paid Fast mode or not; it needs nothing from the site owner. It lists the wallets installed in the browser (Wallet Standard) with their logos, plus Phantom, Solflare and Backpack to install or to open the page in on a phone. Once connected, the header shows the wallet and its short address, with Copy address, Change wallet and Disconnect. The same connection pays for Fast mode. A wallet connects only when the visitor picks it; the one used last is listed first. My addresses opens in a new tab, so a key that is not saved yet stays on the result.
 
 ## How payments work
 

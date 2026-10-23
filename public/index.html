@@ -236,11 +236,6 @@ h1{margin:18px auto 14px;font:700 clamp(40px,7vw,76px)/.98 var(--display);letter
 .wmenu button:hover{background:var(--card-hi)}
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:60;max-width:min(560px,calc(100vw - 32px));padding:13px 18px;border-radius:14px;background:var(--card-hi);border:1px solid var(--line2);color:var(--text);font:600 15px var(--sans);box-shadow:0 24px 60px -20px rgba(0,0,0,.9)}
 .toast[hidden]{display:none}
-.kv .v.fundrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:600 15px/1.5 var(--sans)}
-.fundrow input{width:96px;height:38px;padding:0 10px;border-radius:10px;border:1px solid var(--line2);background:var(--well);color:var(--text);font:600 15px var(--mono)}
-.fundrow [data-fundmsg]{flex-basis:100%;color:var(--muted);font-size:14.5px}
-.fundrow [data-fundmsg]:empty{display:none}
-.fundrow a{color:var(--teal)}
 .paybox p{margin:0}
 .payhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
 .paytime{font:600 14px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
@@ -390,7 +385,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <a href="#times">How long</a>
       <a href="#safe">Is it safe?</a>
       <a href="#faq">Questions</a>
-      <a href="addresses">My addresses</a>
+      <a href="addresses" target="_blank">My addresses</a>
     </nav>
     <span class="sp"></span>
     <span class="pill">
@@ -623,10 +618,10 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <span class="logo" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 100 100"><rect x="6" y="14" width="88" height="72" rx="20" fill="#3BE3C3" stroke="#0B0C15" stroke-width="5"/><ellipse cx="36" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="39" cy="49" r="5.5" fill="#0B0C15"/><ellipse cx="64" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="67" cy="49" r="5.5" fill="#0B0C15"/><path d="M42 66 Q50 74 58 66" fill="none" stroke="#0B0C15" stroke-width="4.5" stroke-linecap="round"/></svg></span>
       <p class="about">Vanity addresses for Solana, {{#PAID}}made for you and sealed to your browser.{{/PAID}}{{^PAID}}ground on your own graphics card.{{/PAID}}</p>
     </div>
-    <div><h4>Make</h4><a href="#make" data-goto="wallet">Wallet address</a><a href="#make" data-goto="token">Token address</a><a href="addresses">My addresses</a></div>
+    <div><h4>Make</h4><a href="#make" data-goto="wallet">Wallet address</a><a href="#make" data-goto="token">Token address</a><a href="addresses" target="_blank">My addresses</a></div>
     <div><h4>Learn</h4><a href="#how">How it works</a><a href="#times">How long it takes</a><a href="#faq">Questions</a></div>
     <div><h4>Trust</h4><a href="#safe">Is it safe?</a><a href="#safe">Where keys are made</a>{{SOURCE_LINK}}</div>
-    <div><h4>Legal</h4><a href="legal#terms">Terms</a><a href="legal#privacy">Privacy</a><a href="legal#refunds">Refunds</a></div>
+    <div><h4>Legal</h4><a href="legal#terms" target="_blank">Terms</a><a href="legal#privacy" target="_blank">Privacy</a><a href="legal#refunds" target="_blank">Refunds</a></div>
   </div>
   <div class="fine"><span>© {{OPERATOR}}. Not affiliated with the Solana Foundation.</span><span>{{CONTACT_LINE}}</span><span>{{#PAID}}Keys are made on our server and sealed to your browser.{{/PAID}}{{^PAID}}Keys are made on your device unless you turn on Fast mode.{{/PAID}}</span></div>
 </footer>
@@ -1480,11 +1475,9 @@ function renderResult(r){
   card.className = 'res';
   const title = r.mode === 'token' ? 'Your token address is ready' : 'Your wallet is ready';
   const label = r.mode === 'token' ? 'Mint address' : 'Address';
-  // A mint must stay empty until the token is created, so only wallet addresses get the Add SOL row.
-  const canFund = r.mode !== 'token' && state.server.status === 'ready';
   card.innerHTML = `
     <h2>${title}</h2>
-    <p class="sub">Found after ${fmtBig(r.tries)} keys in ${fmtElapsed(r.elapsed)} on ${WHERE[r.engine]}.${location.protocol === 'file:' ? '' : ' Added to <a href="addresses" data-mine>My addresses</a>.'}</p>
+    <p class="sub">Found after ${fmtBig(r.tries)} keys in ${fmtElapsed(r.elapsed)} on ${WHERE[r.engine]}.${location.protocol === 'file:' ? '' : ' Added to <a href="addresses" target="_blank" data-mine>My addresses</a>.'}</p>
     <div class="kv"><span class="k">${label}</span>
       <div class="v">${hl(r.address, r.pl, r.sl)}</div>
       <div class="btns"><button class="sm" data-act="copyAddr">Copy</button></div>
@@ -1492,11 +1485,7 @@ function renderResult(r){
     <div class="kv"><span class="k">Private key</span>
       <div class="v masked" data-secret>${'•'.repeat(32)}</div>
       <div class="btns"><button class="sm" data-act="reveal">Show</button><button class="sm" data-act="copyKey">Copy</button></div>
-    </div>${canFund ? `
-    <div class="kv"><span class="k">Add SOL</span>
-      <div class="v fundrow">Send <input type="number" min="0.001" step="0.001" value="0.01" aria-label="Amount in SOL" data-amt> SOL here from your wallet.<span data-fundmsg></span></div>
-      <div class="btns"><button class="sm" data-act="fund">Send</button></div>
-    </div>` : ''}
+    </div>
     <div class="foot">
       <p>Anyone with this key controls the ${r.mode === 'token' ? 'mint' : 'wallet'}. Save it now; closing the tab erases it.</p>
       <button class="dl" data-act="download">Download keypair</button>
@@ -1510,7 +1499,6 @@ function renderResult(r){
       const v = card.querySelector('[data-secret]'); const shown = !v.classList.contains('masked');
       v.classList.toggle('masked', shown); v.textContent = shown ? '•'.repeat(32) : r.secret58; b.textContent = shown ? 'Show' : 'Hide';
     }
-    if (act === 'fund') fundAddress(r, card, b);
     if (act === 'download'){
       const blob = new Blob([JSON.stringify(Array.from(r.secret))], { type: 'application/json' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = r.address + '.json';
@@ -1520,31 +1508,6 @@ function renderResult(r){
   });
   $('results').prepend(card);
   if (state.found === r) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' });
-}
-// Sends SOL from the connected wallet to a freshly made address so it is ready to use. Only once the key is saved:
-// that key is the only way to move the SOL again.
-async function fundAddress(r, card, btn){
-  const msg = h => { card.querySelector('[data-fundmsg]').innerHTML = h; };
-  if (!r.saved){ msg('Save the private key first (Copy or Download): only that key can move this SOL.'); return; }
-  const sol = parseFloat(card.querySelector('[data-amt]').value);
-  if (!(sol >= 0.001)){ msg('Send at least 0.001 SOL: Solana needs about 0.00089 SOL to open a new address.'); return; }
-  if (!state.wallet){ openWallets(() => fundAddress(r, card, btn)); return; }
-  const c = state.wallet, chain = chainId();
-  btn.disabled = true;
-  try {
-    const have = await balanceOf(c.account.address);
-    if (have != null && have < Math.round(sol * 1e9) + 10000){ msg(`${esc(c.w.name)} has ${fmtSol(have / 1e9)} SOL, not enough to send ${sol} SOL plus the network fee.`); return; }
-    msg(`Approve the transfer in ${esc(c.w.name)}.`);
-    const res = await fetch('api/blockhash', { cache: 'no-store' });
-    if (!res.ok) throw walletError('the server could not reach Solana');
-    const { blockhash } = await res.json();
-    const tx = transferTx(c.account.publicKey, b58dec(r.address), null, Math.round(sol * 1e9), b58dec(blockhash));
-    const sig = await walletSend(c, chain, tx, null), cluster = chain === 'solana:mainnet' ? '' : `?cluster=${chain.split(':')[1]}`;
-    msg(`Sent ${sol} SOL. <a href="https://solscan.io/tx/${esc(sig)}${cluster}" target="_blank" rel="noopener">View on Solscan</a>`);
-    btn.textContent = 'Sent';
-  } catch (e) {
-    msg(esc(failText(walletError(e), 'transfer')));
-  } finally { btn.disabled = false; }
 }
 async function copy(text, btn){
   try { await navigator.clipboard.writeText(text); }
