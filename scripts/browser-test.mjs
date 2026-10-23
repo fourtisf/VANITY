@@ -230,11 +230,17 @@ const quick = await fp.inputValue('#pre');
 check(quick && quick.length < 8 && 'pumppump'.startsWith(quick), `quicker word: ${quick}`);
 await fp.waitForSelector('#go:not([disabled])', { timeout: 5000 }).catch(() => fail('the quicker word cannot be started'));
 await fp.fill('#pre', '');
-// Ideas: words that look rare but are quick; one click fills them in.
+// Ideas: words that look rare but are quick. Start and End ideas fill only their own side, so they combine;
+// a second click clears that side.
 await fp.click('#ideas button[data-pre="CHAD"]', { timeout: 5000 }).catch(() => fail('no quick ideas shown'));
-check(await fp.inputValue('#pre') === 'CHAD' && await fp.isHidden('#ideas button[data-pre="CHAD"]'), 'idea not filled in');
+check(await fp.inputValue('#pre') === 'CHAD', 'idea not filled in');
 await fp.waitForSelector('#go:not([disabled])', { timeout: 5000 }).catch(() => fail('the idea cannot be started'));
-await fp.fill('#pre', '');
+await fp.click('#ideas button[data-suf="777"]');
+check(await fp.inputValue('#pre') === 'CHAD' && await fp.inputValue('#suf') === '777', 'an End idea replaced the start');
+check(await fp.$eval('#ideas button[data-pre="CHAD"]', b => b.classList.contains('on')), 'chosen idea not highlighted');
+await fp.click('#ideas button[data-pre="CHAD"]');
+check(await fp.inputValue('#pre') === '' && await fp.inputValue('#suf') === '777', 'second click did not clear the start');
+await fp.fill('#suf', '');
 await fp.waitForSelector('#fast:not([hidden])', { timeout: 30000 });
 await fp.click('#fast'); await fp.fill('#pre', 'A');
 await fp.waitForSelector('#go:not([disabled])', { timeout: 30000 });

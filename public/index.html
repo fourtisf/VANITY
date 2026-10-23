@@ -140,6 +140,8 @@ h1{margin:18px auto 14px;font:700 clamp(40px,7vw,76px)/.98 var(--display);letter
 .ideas .lbl{flex:none;width:76px;font-size:14px;color:var(--dim)}
 .ideas .chips{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
 .ideas button{flex:none;font-size:14px;padding:6px 11px}
+.ideas button.on{border-color:var(--teal);background:var(--teal-wash)}
+.ideas button.slow i{color:var(--warn)}
 .ideas[hidden],.ideas .irow[hidden],.ideas button[hidden]{display:none}
 @media (max-width:560px){
   .ideas .irow{display:block}
@@ -1148,13 +1150,13 @@ const cleanVal = id => $(id).value.replace(/\s+/g, '');
 // Words that look rare in an address but are found in seconds to minutes: short, and starting with the
 // letters and digits most addresses start with.
 const IDEAS = [
-  ['Start', [['8888', ''], ['DEGEN', ''], ['HODL', ''], ['GOAT', ''], ['CHAD', '']]],
-  ['End', [['', 'pump'], ['', '777'], ['', 'moon'], ['', 'bonk'], ['', 'pepe']]],
-  ['Both ends', [['69', '69'], ['GM', 'gm']]],
+  ['Start', 'pre', [['8888', ''], ['DEGEN', ''], ['HODL', ''], ['GOAT', ''], ['CHAD', '']]],
+  ['End', 'suf', [['', 'pump'], ['', '777'], ['', 'moon'], ['', 'bonk'], ['', 'pepe']]],
+  ['Both ends', 'both', [['69', '69'], ['GM', 'gm'], ['AI', 'ai'], ['APE', 'gm']]],
 ];
-$('ideas').innerHTML = '<span class="ttl">Look rare, found fast</span>' + IDEAS.map(([label, words]) =>
+$('ideas').innerHTML = '<span class="ttl">Look rare, found fast</span>' + IDEAS.map(([label, side, words]) =>
   `<div class="irow"><span class="lbl">${label}</span><span class="chips">${words.map(([p, s]) =>
-    `<button type="button" data-pre="${p}" data-suf="${s}">${p}…${s} <i></i></button>`).join('')}</span></div>`).join('');
+    `<button type="button" data-side="${side}" data-pre="${p}" data-suf="${s}">${p}…${s} <i></i></button>`).join('')}</span></div>`).join('');
 // Shorter versions of the word that finish within 10 minutes at this rate: keep as many letters as possible,
 // whole parts first, then the quickest. Returns up to two.
 function quicker(a, rate){
@@ -1224,13 +1226,18 @@ function update(){
       }
     }
   }
-  // Ideas are for wallet addresses (a token's exact pump ending makes each one slow), and only those this
-  // engine finds within 10 minutes.
+  // Ideas are for wallet addresses (a token's exact pump ending makes each one slow). A Start or End idea
+  // fills only its own side, so the two combine; its time is for the address a click would give, in amber
+  // when that is over 10 minutes. The chosen ones are highlighted, and a second click clears them.
   let ideas = 0;
   $('ideas').querySelectorAll('button').forEach(b => {
-    const t = 1 / (VP.analyze(b.dataset.pre, b.dataset.suf, state.anyCase).p * rate);
-    const show = state.mode === 'wallet' && !state.running && (!rate || t <= 600) && !(b.dataset.pre === a.preRaw && b.dataset.suf === a.sufRaw);
+    const side = b.dataset.side;
+    const pre = side === 'suf' ? a.preRaw : b.dataset.pre, suf = side === 'pre' ? a.sufRaw : b.dataset.suf;
+    const r = VP.analyze(pre, suf, state.anyCase), t = 1 / (r.p * rate);
+    const show = state.mode === 'wallet' && !state.running && !r.error;
     b.hidden = !show; ideas += show;
+    b.classList.toggle('on', (side === 'suf' || a.preRaw === b.dataset.pre) && (side === 'pre' || a.sufRaw === b.dataset.suf));
+    b.classList.toggle('slow', !!rate && t > 600);
     b.lastChild.textContent = rate ? fmtWait(t) : '';
   });
   $('ideas').querySelectorAll('.irow').forEach(r => { r.hidden = !r.querySelector('button:not([hidden])'); });
@@ -1483,7 +1490,13 @@ const useWord = e => {
   $('pre').value = b.dataset.pre; $('suf').value = b.dataset.suf; clearFound(); update();
 };
 $('slow').addEventListener('click', useWord);
-$('ideas').addEventListener('click', useWord);
+$('ideas').addEventListener('click', e => {
+  const b = e.target.closest('button[data-side]'); if (!b || state.running) return;
+  const side = b.dataset.side, on = b.classList.contains('on');
+  if (side !== 'suf') $('pre').value = on ? '' : b.dataset.pre;
+  if (side !== 'pre') $('suf').value = on ? '' : b.dataset.suf;
+  clearFound(); update();
+});
 $('payBtn').addEventListener('click', () => state.wallet ? pay() : openWallets(pay));
 $('payChange').addEventListener('click', () => openWallets(null));
 $('hdrWallet').addEventListener('click', e => { e.stopPropagation(); if (state.wallet) $('hdrMenu').hidden = !$('hdrMenu').hidden; else openWallets(null); });
