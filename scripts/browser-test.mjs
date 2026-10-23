@@ -272,11 +272,14 @@ await fp.fill('#pre', '');
 await fp.click('#ideas button[data-pre="CHAD"]', { timeout: 5000 }).catch(() => fail('no quick ideas shown'));
 check(await fp.inputValue('#pre') === 'CHAD', 'idea not filled in');
 await fp.waitForSelector('#go:not([disabled])', { timeout: 5000 }).catch(() => fail('the idea cannot be started'));
-await fp.click('#ideas button[data-suf="777"]');
-check(await fp.inputValue('#pre') === 'CHAD' && await fp.inputValue('#suf') === '777', 'an End idea replaced the start');
+// With a start chosen, End offers only short endings, which keep the combined search quick.
+const ends = await fp.$$eval('#ideas .irow[data-side="suf"] button', bs => bs.map(b => b.dataset.suf));
+check(ends.length && ends.every(w => w.length <= 2), 'End ideas after a start: ' + ends.join(', '));
+await fp.click(`#ideas button[data-suf="${ends[0]}"]`);
+check(await fp.inputValue('#pre') === 'CHAD' && await fp.inputValue('#suf') === ends[0], 'an End idea replaced the start');
 check(await fp.$eval('#ideas button[data-pre="CHAD"]', b => b.classList.contains('on')), 'chosen idea not highlighted');
 await fp.click('#ideas button[data-pre="CHAD"]');
-check(await fp.inputValue('#pre') === '' && await fp.inputValue('#suf') === '777', 'second click did not clear the start');
+check(await fp.inputValue('#pre') === '' && await fp.inputValue('#suf') === ends[0], 'second click did not clear the start');
 await fp.fill('#suf', '');
 await fp.waitForSelector('#fast:not([hidden])', { timeout: 30000 });
 await fp.click('#fast'); await fp.fill('#pre', 'A');

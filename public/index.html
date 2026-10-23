@@ -1154,14 +1154,26 @@ function engineRate(e){
 const cleanVal = id => $(id).value.replace(/\s+/g, '');
 // Words that look rare in an address but are found in seconds to minutes: short, and starting with the
 // letters and digits most addresses start with.
-const IDEAS = [
-  ['Start', 'pre', [['8888', ''], ['DEGEN', ''], ['HODL', ''], ['GOAT', ''], ['CHAD', '']]],
-  ['End', 'suf', [['', 'pump'], ['', '777'], ['', 'moon'], ['', 'bonk'], ['', 'pepe']]],
-  ['Both ends', 'both', [['69', '69'], ['GM', 'gm'], ['AI', 'ai'], ['APE', 'gm']]],
-];
-$('ideas').innerHTML = '<span class="ttl">Look rare, found fast</span>' + IDEAS.map(([label, side, words]) =>
-  `<div class="irow"><span class="lbl">${label}</span><span class="chips">${words.map(([p, s]) =>
-    `<button type="button" data-side="${side}" data-pre="${p}" data-suf="${s}">${p}…${s} <i></i></button>`).join('')}</span></div>`).join('');
+// Longest first. With nothing typed on the other side the long ones fit; once it has a word, only short ones
+// keep the combined search quick, so the row moves down this list (see ideaWords).
+const START_IDEAS = ['DEGEN', '8888', 'HODL', 'GOAT', 'CHAD', 'BOSS', 'CASH', '777', 'APE', 'ACE', 'DEV', 'GEM', 'GM', '69', 'AI', 'EZ', 'GG', 'A', 'G', '8'];
+const END_IDEAS = ['pump', 'moon', 'bonk', 'pepe', 'king', 'goat', '777', '999', 'sol', 'wif', 'ape', 'fun', 'gm', 'ai', '69', 'x', 'z'];
+const BOTH_IDEAS = [['69', '69'], ['GM', 'gm'], ['AI', 'ai'], ['APE', 'gm']];
+$('ideas').innerHTML = '<span class="ttl">Look rare, found fast</span>' + [['Start', 'pre'], ['End', 'suf'], ['Both ends', 'both']].map(([label, side]) =>
+  `<div class="irow" data-side="${side}"><span class="lbl">${label}</span><span class="chips"></span></div>`).join('');
+// Up to five ideas for one side, given what is typed on the other: those found within 10 minutes here (longest
+// first), then the quickest of the rest. The chosen one stays first so it can be clicked off.
+function ideaWords(side, a, rate){
+  if (side === 'both') return BOTH_IDEAS;
+  const cur = side === 'pre' ? a.preRaw : a.sufRaw;
+  const all = (side === 'pre' ? START_IDEAS : END_IDEAS).filter(w => w !== cur).map(w => {
+    const r = side === 'pre' ? VP.analyze(w, a.sufRaw, state.anyCase) : VP.analyze(a.preRaw, w, state.anyCase);
+    return { w, t: r.error ? NaN : rate ? 1 / (r.p * rate) : 0 };
+  }).filter(x => !isNaN(x.t));
+  const words = all.filter(x => x.t <= 600).concat(all.filter(x => x.t > 600).sort((x, y) => x.t - y.t)).map(x => x.w);
+  if ((side === 'pre' ? START_IDEAS : END_IDEAS).includes(cur)) words.unshift(cur);
+  return words.slice(0, 5).map(w => side === 'pre' ? [w, ''] : ['', w]);
+}
 // Shorter versions of the word that finish within 10 minutes at this rate: keep as many letters as possible,
 // whole parts first, then the quickest. Returns up to two.
 function quicker(a, rate){
@@ -1235,6 +1247,13 @@ function update(){
   // fills only its own side, so the two combine; its time is for the address a click would give, in amber
   // when that is over 10 minutes. The chosen ones are highlighted, and a second click clears them.
   let ideas = 0;
+  if (state.mode === 'wallet' && !state.running) $('ideas').querySelectorAll('.irow').forEach(row => {
+    const words = ideaWords(row.dataset.side, a, rate), key = words.join('|');
+    if (row.dataset.key === key) return;   // rebuilt only when the ideas change, so a click in progress is not lost
+    row.dataset.key = key;
+    row.querySelector('.chips').innerHTML = words.map(([p, s]) =>
+      `<button type="button" data-side="${row.dataset.side}" data-pre="${esc(p)}" data-suf="${esc(s)}">${esc(p)}…${esc(s)} <i></i></button>`).join('');
+  });
   $('ideas').querySelectorAll('button').forEach(b => {
     const side = b.dataset.side;
     const pre = side === 'suf' ? a.preRaw : b.dataset.pre, suf = side === 'pre' ? a.sufRaw : b.dataset.suf;
