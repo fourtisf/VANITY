@@ -33,6 +33,7 @@ const rpc = http.createServer((req, res) => {
     const result = method === 'getLatestBlockhash' ? { context: { slot: 1 }, value: { blockhash: BLOCKHASH, lastValidBlockHeight: 100 } }
       : method === 'getSignaturesForAddress' ? (byAddr.get(params[0]) || [])
       : method === 'getTransaction' ? (byId.get(params[0]) || null)
+      : method === 'sendTransaction' ? landTx(web3.Transaction.from(Buffer.from(params[0], 'base64')))
       : method === 'getMultipleAccounts' ? { context: { slot: 1 }, value: params[0].map(a => lamportsOf.has(a) ? { lamports: lamportsOf.get(a), owner: '11111111111111111111111111111111', data: ['', 'base64'], executable: false } : null) } : null;
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id, result }));
   });
@@ -64,14 +65,35 @@ async function sendTx(txBytes, chain) {
     feePayer: tx.feePayer?.toBase58(), extra: ix.keys.slice(2).map(k => ({ signer: k.isSigner, writable: k.isWritable })) };
   sentAll.push(sent);
   tx.sign(payer);
-  if (!tx.verifySignatures()) throw new Error('signature does not verify');
-  const sig = VP.b58(tx.signature);
-  const pre = keys.map(() => 1e9), post = [...pre], i = keys.indexOf(PAY_TO);
-  post[0] -= 5000 + sent.lamports; if (i >= 0) post[i] += sent.lamports;
-  byId.set(sig, { slot: 1, meta: { err: null, fee: 5000, preBalances: pre, postBalances: post, loadedAddresses: { writable: [], readonly: [] } }, transaction: { signatures: [sig], message: { accountKeys: keys } } });
-  for (const k of keys) byAddr.set(k, [{ signature: sig, err: null }, ...(byAddr.get(k) || [])]);
+  landTx(tx);
   return Array.from(tx.signature);
 }
+// The fake chain: a signed transfer becomes a confirmed transaction the server can look up.
+function landTx(tx) {
+  if (!tx.verifySignatures()) throw new Error('signature does not verify');
+  const t = web3.SystemInstruction.decodeTransfer(tx.instructions.find(ix => ix.programId.equals(web3.SystemProgram.programId)));
+  const keys = tx.compileMessage().accountKeys.map(k => k.toBase58()), sig = VP.b58(tx.signature);
+  const pre = keys.map(() => 1e9), post = [...pre], i = keys.indexOf(t.toPubkey.toBase58());
+  post[0] -= 5000 + Number(t.lamports); if (i >= 0) post[i] += Number(t.lamports);
+  byId.set(sig, { slot: 1, meta: { err: null, fee: 5000, preBalances: pre, postBalances: post, loadedAddresses: { writable: [], readonly: [] } }, transaction: { signatures: [sig], message: { accountKeys: keys } } });
+  for (const k of keys) byAddr.set(k, [{ signature: sig, err: null }, ...(byAddr.get(k) || [])]);
+  return sig;
+}
+// A wallet that cannot send by itself (its error reads "[object Object]") but can sign: the page has our server send it.
+let signedOnly = 0;
+async function signTx(txBytes) { const tx = web3.Transaction.from(Buffer.from(txBytes)); tx.partialSign(payer); signedOnly++; return Array.from(tx.serialize()); }
+const signOnlyWallet = (address, pub) => {
+  const account = { address, publicKey: new Uint8Array(pub), chains: ['solana:mainnet'], features: ['solana:signAndSendTransaction', 'solana:signTransaction'] };
+  const wallet = { version: '1.0.0', name: 'Bitget Wallet', icon: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" rx="3" fill="#00F0FF"/></svg>'),
+    chains: ['solana:mainnet'], accounts: [], features: {
+      'standard:connect': { version: '1.0.0', connect: async () => ({ accounts: [account] }) },
+      'solana:signAndSendTransaction': { version: '1.0.0', supportedTransactionVersions: ['legacy', 0], signAndSendTransaction: async () => { throw new Error({ code: -32603, message: 'Internal JSON-RPC error.' }); } },
+      'solana:signTransaction': { version: '1.0.0', supportedTransactionVersions: ['legacy', 0], signTransaction: async ({ transaction }) => [{ signedTransaction: new Uint8Array(await window.__signTx(Array.from(transaction))) }] },
+    } };
+  const cb = ({ register }) => register(wallet);
+  try { window.dispatchEvent(new CustomEvent('wallet-standard:register-wallet', { detail: cb })); } catch {}
+  try { window.addEventListener('wallet-standard:app-ready', ({ detail }) => cb(detail)); } catch {}
+};
 // Same two-way handshake as @wallet-standard/wallet registerWallet().
 const fakeWallet = (name, address, pub) => {
   const account = { address, publicKey: new Uint8Array(pub), chains: ['solana:mainnet'], features: ['solana:signAndSendTransaction'] };
@@ -151,8 +173,13 @@ const rows = await page.$$eval('#walletList .wrow', els => els.map(e => `${e.que
 check(JSON.stringify(rows) === JSON.stringify(['Phantom:Detected', 'Late Wallet:Detected', 'Solflare:Install', 'Backpack:Install']), 'wallet list: ' + rows);
 check(await page.$$eval('#walletList img', els => els.every(i => i.complete && i.naturalWidth > 0)), 'a wallet logo did not load');
 await page.locator('#walletDlg').screenshot({ path: path.join(shots, 'wallets.png') });
+lamportsOf.set(payer.publicKey.toBase58(), 0);
 await page.click('#walletList .wrow:has-text("Phantom")');
-await page.waitForFunction(() => /didn’t go through/.test(document.querySelector('#payMsg').textContent), null, { timeout: 10000 }).catch(() => fail('a refused payment was not reported'));
+await page.waitForFunction(() => /has 0 SOL, and this search costs 0\.01 SOL/.test(document.querySelector('#payMsg').textContent), null, { timeout: 10000 }).catch(async () => fail('an empty wallet was not reported: ' + await page.textContent('#payMsg')));
+check(calls === 0, 'the wallet was asked to pay from an empty account');
+lamportsOf.set(payer.publicKey.toBase58(), 2e9);
+await page.click('#payBtn');
+await page.waitForFunction(() => /You cancelled the payment in your wallet\. Press Pay to try again\./.test(document.querySelector('#payMsg').textContent), null, { timeout: 10000 }).catch(async () => fail('a refused payment was not reported: ' + await page.textContent('#payMsg')));
 check(/^Pay 0\.01 SOL$/.test(await page.textContent('#payBtnText')), 'pay button not offered again after a refusal');
 check(await page.textContent('#payWalletName') === 'Phantom' && /…/.test(await page.textContent('#payWalletAddr')), 'connected wallet not shown');
 await page.click('#payBtn');
@@ -217,6 +244,24 @@ await mine.waitForSelector(`.item[data-addr="${pasted}"]`, { timeout: 5000 }).ca
 check(await mine.locator('.item').count() === 3, 'three addresses after adding');
 await mine.screenshot({ path: path.join(shots, 'my-addresses-added.png'), fullPage: true });
 console.log('My addresses: listed with key saved, balance on request, remove, add from files, a list and a paste: ok');
+
+/* ---- a wallet that can only sign (Bitget's "[object Object]"): the server sends its signed payment ---- */
+const bp = await browser.newPage();
+bp.on('pageerror', e => fail('page error: ' + e.message));
+await bp.exposeFunction('__signTx', signTx);
+await bp.addInitScript(`(${signOnlyWallet})(${JSON.stringify(payer.publicKey.toBase58())}, ${JSON.stringify(Array.from(payer.publicKey.toBytes()))})`);
+await bp.goto(base + '/', { waitUntil: 'load' });
+await bp.fill('#pre', 'B');
+await bp.waitForSelector('#go:not([disabled])', { timeout: 30000 });
+await bp.click('#go');
+await bp.waitForSelector('#paybox:not([hidden])', { timeout: 15000 }).catch(() => fail('pay box never appeared for the sign-only wallet'));
+await bp.click('#payBtn');
+await bp.waitForSelector('#walletDlg[open]');
+await bp.click('#walletList .wrow:has-text("Bitget Wallet")');
+await bp.waitForSelector('.res', { timeout: 60000 }).catch(async () => fail('sign-only wallet: no result; pay msg: ' + await bp.textContent('#payMsg')));
+check(signedOnly === 1 && /^[Bb]/.test((await bp.textContent('.res .kv .v')).trim()), 'sign-only wallet payment');
+await bp.close();
+console.log('wallet that cannot send ("[object Object]"): signed payment sent by the server, key delivered: ok');
 
 /* ---- phone without a wallet: reopen the page inside the wallet app ---- */
 const phone = await browser.newContext({ ...devices['iPhone 13'] });

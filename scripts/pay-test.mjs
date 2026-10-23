@@ -4,7 +4,7 @@
 // Usage: node scripts/pay-test.mjs
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, generateKeyPairSync, sign } from 'node:crypto';
 import { readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -37,12 +37,33 @@ const rpc = http.createServer((req, res) => {
     const { id, method, params } = JSON.parse(body);
     const result = method === 'getLatestBlockhash' ? { context: { slot: 1 }, value: { blockhash: key(), lastValidBlockHeight: 100 } }
       : method === 'getSignaturesForAddress' ? (byRef.get(params[0]) || [])
-      : method === 'getTransaction' ? (byId.get(params[0]) || null) : undefined;
+      : method === 'getTransaction' ? (byId.get(params[0]) || null)
+      : method === 'sendTransaction' ? relayed(params[0]) : undefined;
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify(result === undefined ? { jsonrpc: '2.0', id, error: { code: -32601, message: 'no ' + method } } : { jsonrpc: '2.0', id, result }));
   });
 });
 await new Promise(r => rpc.listen(0, '127.0.0.1', r));
+
+// A transfer signed the way a wallet signs the page's transaction (legacy, one System transfer from the signer).
+const b58dec = s => { let n = 0n; for (const c of s) n = n * 58n + BigInt(VP.ALPH.indexOf(c)); const out = []; while (n) { out.unshift(Number(n & 255n)); n >>= 8n; } while (out.length < 32) out.unshift(0); return Buffer.from(out); };
+const sent = new Map();   // base64 transaction -> what it pays (the fake chain lands it when sent)
+function signedTransfer({ to = PAY_TO, lamports, reference }) {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const keys = [publicKey.export({ format: 'der', type: 'spki' }).subarray(-32), b58dec(to), ...(reference ? [b58dec(reference)] : [])];
+  const data = Buffer.alloc(12); data.writeUInt32LE(2, 0); data.writeBigUInt64LE(BigInt(lamports), 4);
+  const msg = Buffer.from([1, 0, keys.length - 1, keys.length + 1, ...Buffer.concat(keys), ...Buffer.alloc(32), ...randomBytes(32),
+    1, keys.length, keys.length, ...keys.map((_, i) => i), data.length, ...data]);
+  const tx = Buffer.concat([Buffer.from([1]), sign(null, msg, privateKey), msg]).toString('base64');
+  sent.set(tx, { reference, lamports, sig: VP.b58(Buffer.from(tx, 'base64').subarray(1, 65)) });
+  return tx;
+}
+function relayed(b64) {
+  const t = sent.get(b64);
+  if (!t) return undefined;
+  addTx(t.reference, t.lamports, { sig: t.sig });
+  return t.sig;
+}
 
 /* ---- server under test ---- */
 const port = 20000 + Math.floor(Math.random() * 20000), base = `http://127.0.0.1:${port}`;
@@ -123,6 +144,29 @@ if ((await watch(job2.id)).status !== 'unpaid') fail('one transfer paid for two 
 const gone = await api('/api/jobs/' + job2.id, { method: 'DELETE' });
 if (gone.status !== 'canceled') fail('unpaid job not canceled: ' + JSON.stringify(gone));
 console.log('reused transfer refused, unpaid job canceled: ok');
+
+// A wallet that signs but cannot send: the page hands the signed payment to the server, which sends only an exact
+// payment for that job.
+const job4 = await newJob();
+if (job4.code !== 201) fail('relay job not created: ' + JSON.stringify(job4));
+const relay = tx => api(`/api/jobs/${job4.id}/send`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ transaction: tx }) });
+const r4 = job4.pay.reference, l4 = job4.pay.lamports;
+for (const [what, tx, code] of [
+  ['garbage', Buffer.from('not a transaction').toString('base64'), 400],
+  ['a transfer to someone else', signedTransfer({ to: key(), lamports: l4, reference: r4 }), 400],
+  ['a short transfer', signedTransfer({ lamports: l4 - 1, reference: r4 }), 400],
+  ['a transfer without the reference', signedTransfer({ lamports: l4 }), 400],
+]) if ((await relay(tx)).code !== code) fail('the server relayed ' + what);
+const good = await relay(signedTransfer({ lamports: l4, reference: r4 }));
+if (good.code !== 200 || !good.signature) fail('valid payment not relayed: ' + JSON.stringify(good));
+let j4 = await watch(job4.id);
+if (j4.paid !== good.signature) fail('relayed payment not accepted: ' + JSON.stringify(j4));
+for (const t0 = Date.now(); j4.status === 'queued' || j4.status === 'running'; j4 = await api('/api/jobs/' + job4.id)) {
+  if (Date.now() - t0 > 120000) fail('relayed job took longer than 2 minutes');
+  await sleep(300);
+}
+if ((await relay(signedTransfer({ lamports: l4, reference: r4 }))).code !== 409) fail('a paid job took another payment');
+console.log('signed payment sent by the server: only an exact payment for the job, then paid: ok');
 
 // A payment the page never reported (it closed first) is found by its reference within ~10 seconds,
 // and a paid job that is still searching comes back after a restart under the same id.

@@ -197,6 +197,41 @@ function latestBlockhash() {
   return blockhash.value;
 }
 
+// A payment the visitor's wallet signed but could not send itself (some wallets fail in their own RPC, or report
+// an unreadable error) is sent through SOLANA_RPC, but only when it is exactly a payment for that job: one signer,
+// one System transfer of at least the price from that signer to PAY_TO listing the job's reference, and nothing
+// else but compute budget instructions. Legacy and v0 transactions without lookup tables are read.
+const SYSTEM_PROGRAM = '11111111111111111111111111111111', COMPUTE_BUDGET = 'ComputeBudget111111111111111111111111111111';
+function readTx(buf) {
+  let o = 0;
+  const byte = () => { if (o >= buf.length) throw new Error('short'); return buf[o++]; };
+  const take = n => { if (o + n > buf.length) throw new Error('short'); const b = buf.subarray(o, o + n); o += n; return b; };
+  const cu16 = () => { let v = 0; for (let s = 0; s < 21; s += 7) { const b = byte(); v |= (b & 0x7f) << s; if (!(b & 0x80)) return v; } throw new Error('length'); };
+  const nsig = cu16(); take(64 * nsig);
+  const v0 = buf[o] & 0x80;
+  if (v0 && (byte() & 0x7f) !== 0) throw new Error('version');
+  const header = [...take(3)];
+  // (b58 writes one '1' too many for the all-zero System Program key, so that one is named directly)
+  const keys = Array.from({ length: cu16() }, () => { const k = take(32); return k.every(b => b === 0) ? SYSTEM_PROGRAM : VP.b58(k); });
+  take(32);
+  const ixs = Array.from({ length: cu16() }, () => ({ prog: keys[byte()], acc: [...take(cu16())], data: Buffer.from(take(cu16())) }));
+  if (v0 && cu16() !== 0) throw new Error('lookup tables');
+  if (o !== buf.length) throw new Error('trailing bytes');
+  return { nsig, header, keys, ixs };
+}
+function isJobPayment(tx, job) {
+  if (tx.nsig !== 1 || tx.header[0] !== 1) return false;
+  let transfers = 0;
+  for (const ix of tx.ixs) {
+    if (ix.prog === COMPUTE_BUDGET) continue;
+    if (ix.prog !== SYSTEM_PROGRAM || ix.data.length !== 12 || ix.data.readUInt32LE(0) !== 2 || ix.acc.length < 2) return false;
+    const [from, to, ...refs] = ix.acc.map(i => tx.keys[i]);
+    if (from !== tx.keys[0] || to !== CFG.payTo || Number(ix.data.readBigUInt64LE(4)) < job.pay.lamports || !refs.includes(job.pay.reference)) return false;
+    transfers++;
+  }
+  return transfers === 1;
+}
+
 // Accepts a confirmed, successful transaction that lists the job's reference and raised PAY_TO by the price.
 async function acceptPayment(job, signature) {
   if (usedSigs.has(signature)) return false;
@@ -434,10 +469,24 @@ const server = http.createServer(async (req, res) => {
       } catch (e) { log('balances failed:', e.message); return send(res, 502, { error: 'rpc' }); }
     }
     if (p === '/api/jobs' && req.method === 'POST') return createJob(req, res);
-    const m = p.match(/^\/api\/jobs\/([0-9a-f]{32})(\/paid)?$/);
+    const m = p.match(/^\/api\/jobs\/([0-9a-f]{32})(\/paid|\/send)?$/);
     if (m) {
       const job = jobs.get(m[1]);
       if (!job) return send(res, 404, { error: 'gone' });
+      if (m[2] === '/send') {
+        if (req.method !== 'POST' || !job.pay) return send(res, 405, { error: 'method' });
+        if (job.status !== 'unpaid') return send(res, 409, { error: 'not-unpaid' });
+        let body, tx, raw;
+        try { body = await readJson(req, 4096); raw = Buffer.from(String(body.transaction || ''), 'base64'); tx = readTx(raw); }
+        catch { return send(res, 400, { error: 'bad-transaction' }); }
+        if (!isJobPayment(tx, job)) return send(res, 400, { error: 'not-a-payment', message: 'that transaction is not the payment for this search' });
+        try {
+          const sig = await rpc('sendTransaction', [raw.toString('base64'), { encoding: 'base64', preflightCommitment: 'confirmed', maxRetries: 5 }]);
+          log(`job ${job.id.slice(0, 8)} payment sent for the wallet (${sig})`);
+          job.pay.hint = sig; job.seenAt = Date.now(); checkPayment(job);
+          return send(res, 200, { signature: sig });
+        } catch (e) { log(`job ${job.id.slice(0, 8)} payment send failed: ${e.message}`); return send(res, 502, { error: 'rpc', message: e.message }); }
+      }
       if (m[2]) {
         // The page reports the signature its wallet returned, so the server checks that transaction right away.
         if (req.method !== 'POST' || !job.pay) return send(res, 405, { error: 'method' });

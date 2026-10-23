@@ -916,6 +916,54 @@ function transferTx(payer, to, reference, lamports, blockhash){
   return Uint8Array.from([1, ...new Uint8Array(64), ...header, keys.length + 1, ...keys.flatMap(k => [...k]), ...system, ...blockhash, ...ix]);
 }
 const payMsg = t => { $('payMsg').textContent = t; };
+// Wallets report failures in many shapes: an Error, {code, message}, {error: {...}}, a string, or even an Error whose
+// message is "[object Object]". This digs out readable text and sorts it into cancelled, no funds, or anything else.
+function walletError(e){
+  if (e && e.kind) return e;
+  const parts = [], seen = new Set();
+  const dig = x => {
+    if (!x || parts.length > 2) return;
+    if (typeof x === 'string'){ if (x.trim() && x !== '[object Object]' && !parts.includes(x)) parts.push(x.trim()); return; }
+    if (typeof x !== 'object' || seen.has(x)) return;
+    seen.add(x); dig(x.message); dig(x.error); dig(x.data); dig(x.cause); dig(x.reason); dig(x.logs && x.logs.join(' '));
+  };
+  dig(e);
+  const code = e && (e.code != null ? e.code : e.error && e.error.code), text = parts.join(': ').slice(0, 220);
+  if (code === 4001 || /reject|denied|declin|cancel/i.test(text)) return { kind: 'rejected', text };
+  if (/insufficient|not enough|no record of a prior credit|0x1\b/i.test(text)) return { kind: 'funds', text };
+  return { kind: 'other', text: text || (code != null ? `error ${code}` : '') };
+}
+const failText = (why, what) => why.kind === 'rejected' ? `You cancelled the ${what} in your wallet.`
+  : why.kind === 'funds' ? `Your wallet doesn’t have enough SOL for this ${what} and its network fee (about 0.000005 SOL).`
+  : `The ${what} didn’t go through${why.text ? ` (${why.text})` : ''}.`;
+// Lamports in an address, or null when the server cannot tell.
+async function balanceOf(address){
+  try {
+    const r = await fetch('api/balances', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ addresses: [address] }) });
+    const j = r.ok ? await r.json() : null, v = j && j.balances && j.balances[address];
+    return typeof v === 'number' ? v : null;
+  } catch { return null; }
+}
+// Has the wallet sign and send a transfer. When a wallet fails to send it itself (its own RPC, or an unreadable error)
+// but can sign, a job payment goes out through our server, which sends only a valid payment for that job.
+async function walletSend(c, chain, tx, relay){
+  const f = c.w.features;
+  try {
+    const [out] = await f['solana:signAndSendTransaction'].signAndSendTransaction({ account: c.account, chain, transaction: tx });
+    return b58(out.signature);
+  } catch (e) {
+    console.error(`${c.w.name} could not sign and send the transfer:`, e);
+    const why = walletError(e);
+    if (why.kind !== 'other' || !relay || !f['solana:signTransaction']) throw why;
+    let signed;
+    try { [{ signedTransaction: signed }] = await f['solana:signTransaction'].signTransaction({ account: c.account, chain, transaction: tx }); }
+    catch (e2) { console.error(`${c.w.name} could not sign the transfer:`, e2); throw walletError(e2); }
+    const r = await fetch(relay, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ transaction: toB64(new Uint8Array(signed)) }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.signature) throw walletError(j.message || why.text || 'the network did not accept it');
+    return j.signature;
+  }
+}
 const sentMsg = 'Payment sent. The search starts as soon as it confirms. If nothing happens within a minute, check your wallet before paying again.';
 const paidJob = () => !!(state.job && !state.job.done && (state.job.paid || state.job.paySig));
 const payLeft = () => state.payDeadline - Date.now();
@@ -1019,17 +1067,24 @@ async function pay(){
   if (!p || !job || !c || state.paying || payLeft() <= 0) return;
   state.paying = true; renderPay();
   try {
+    // An empty wallet is told so here, instead of by a wallet error that may not say why.
+    const have = await balanceOf(c.account.address);
+    if (have != null && have < p.lamports + 10000){
+      payMsg(`${c.w.name} (${shortAddr(c.account.address)}) has ${fmtSol(have / 1e9)} SOL, and this search costs ${p.amount} SOL plus a network fee of about 0.000005 SOL. Add SOL to it, or press Change to pay from another wallet.`);
+      return;
+    }
     payMsg(`Approve the payment of ${p.amount} SOL in ${c.w.name}.`);
     const r = await fetch('api/blockhash', { cache: 'no-store' });
-    if (!r.ok) throw new Error('the server could not reach Solana');
+    if (!r.ok) throw walletError('the server could not reach Solana');
     const { blockhash } = await r.json();
     const tx = transferTx(c.account.publicKey, b58dec(p.to), b58dec(p.reference), p.lamports, b58dec(blockhash));
-    const [out] = await c.w.features['solana:signAndSendTransaction'].signAndSendTransaction({ account: c.account, chain: p.chain, transaction: tx });
+    const sig = await walletSend(c, p.chain, tx, `api/jobs/${job.id}/send`);
     if (job !== state.job) return;
-    job.paySig = b58(out.signature); idbPut(job);
+    job.paySig = sig; idbPut(job);
     payMsg(sentMsg); reportPayment(job);
   } catch (e) {
-    if (job === state.job) payMsg(`The payment didn’t go through${e && e.message ? ` (${e.message})` : ''}. Nothing was sent unless your wallet shows a sent transfer.`);
+    const why = walletError(e);
+    if (job === state.job) payMsg(`${failText(why, 'payment')} ${why.kind === 'other' ? 'Nothing was sent unless your wallet shows a sent transfer.' : 'Press Pay to try again.'}`);
   } finally { state.paying = false; if (job === state.job) renderPay(); }
 }
 // Tells the server which transaction to look at, so it does not have to wait for the reference lookup.
@@ -1484,17 +1539,18 @@ async function fundAddress(r, card, btn){
   const c = state.wallet, chain = chainId();
   btn.disabled = true;
   try {
+    const have = await balanceOf(c.account.address);
+    if (have != null && have < Math.round(sol * 1e9) + 10000){ msg(`${esc(c.w.name)} has ${fmtSol(have / 1e9)} SOL, not enough to send ${sol} SOL plus the network fee.`); return; }
     msg(`Approve the transfer in ${esc(c.w.name)}.`);
     const res = await fetch('api/blockhash', { cache: 'no-store' });
-    if (!res.ok) throw new Error('the server could not reach Solana');
+    if (!res.ok) throw walletError('the server could not reach Solana');
     const { blockhash } = await res.json();
     const tx = transferTx(c.account.publicKey, b58dec(r.address), null, Math.round(sol * 1e9), b58dec(blockhash));
-    const [out] = await c.w.features['solana:signAndSendTransaction'].signAndSendTransaction({ account: c.account, chain, transaction: tx });
-    const sig = b58(out.signature), cluster = chain === 'solana:mainnet' ? '' : `?cluster=${chain.split(':')[1]}`;
+    const sig = await walletSend(c, chain, tx, null), cluster = chain === 'solana:mainnet' ? '' : `?cluster=${chain.split(':')[1]}`;
     msg(`Sent ${sol} SOL. <a href="https://solscan.io/tx/${esc(sig)}${cluster}" target="_blank" rel="noopener">View on Solscan</a>`);
     btn.textContent = 'Sent';
   } catch (e) {
-    msg(`The transfer didn’t go through${e && e.message ? ` (${esc(e.message)})` : ''}.`);
+    msg(esc(failText(walletError(e), 'transfer')));
   } finally { btn.disabled = false; }
 }
 async function copy(text, btn){

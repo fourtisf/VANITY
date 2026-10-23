@@ -144,6 +144,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 
 ## Troubleshooting
 
+- A visitor's payment fails: the pay box shows the wallet's own reason (cancelled, not enough SOL, or its message), and the page checks the wallet's balance before asking it to pay. Wallets that cannot send the payment themselves but can sign it (some report only `[object Object]`) are covered: the page has the server send the signed payment through `POST /api/jobs/:id/send`, which accepts only that job's exact payment. The log then says `payment sent for the wallet`.
 - Log says `payment check failed` or `blockhash failed`: the server cannot use `SOLANA_RPC`. The public RPC rate-limits busy sites; use a provider URL.
 - Log says `no GPU driver (Vulkan) on this machine, using CPU threads`: normal on a server without a GPU. With `ENGINE=auto` the server only tries the GPU when a Vulkan driver is installed, so Dawn's `vkCreateInstance: Found no drivers` warnings no longer fill the error log.
 - Log says `GPU engine unavailable`: run `vulkaninfo --summary`. No GPU listed means the NVIDIA driver or `libvulkan1` is missing. In Docker, `NVIDIA_DRIVER_CAPABILITIES` must include `graphics`.
