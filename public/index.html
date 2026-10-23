@@ -134,10 +134,18 @@ h1{margin:18px auto 14px;font:700 clamp(40px,7vw,76px)/.98 var(--display);letter
 .note .try button,.ideas button{font:700 15px var(--mono);color:var(--teal);background:var(--well);border:1px solid var(--line);border-radius:12px;padding:7px 12px;cursor:pointer}
 .note .try button:hover,.ideas button:hover{border-color:var(--teal)}
 .note .try button i,.ideas button i{font:700 13px var(--sans);font-style:normal;color:var(--muted);margin-left:4px}
-.ideas{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 4px 0}
-.ideas[hidden],.ideas button[hidden]{display:none}
-.ideas .lbl{font-size:15px;color:var(--dim);margin-right:2px}
-.ideas button{font-size:14px;padding:6px 11px}
+.ideas{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin:14px 4px 0}
+.ideas .ttl{font-size:15px;color:var(--dim)}
+.ideas .irow{display:flex;align-items:center;gap:10px}
+.ideas .lbl{flex:none;width:76px;font-size:14px;color:var(--dim)}
+.ideas .chips{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.ideas button{flex:none;font-size:14px;padding:6px 11px}
+.ideas[hidden],.ideas .irow[hidden],.ideas button[hidden]{display:none}
+@media (max-width:560px){
+  .ideas .irow{display:block}
+  .ideas .lbl{display:block;width:auto;margin-bottom:6px}
+  .ideas .chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+}
 
 .choices{display:grid;gap:12px;margin-top:22px}
 .choice,.switchrow{display:flex;align-items:center;gap:18px;width:100%;text-align:left;padding:20px 22px;border-radius:20px;border:1.5px solid var(--line);background:var(--well2);transition:border-color .2s,background .2s,box-shadow .2s}
@@ -442,7 +450,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       </label>
     </div>
     <div class="hint"><span><b>#</b> for any number, <b>*</b> for any letter</span><span>No 0, O, I or l</span></div>
-    <div class="ideas" id="ideas" hidden><span class="lbl">Look rare, found fast:</span></div>
+    <div class="ideas" id="ideas" hidden></div>
 
     <div class="preview">
       <span class="paddr" id="paddr" aria-label="Address preview"></span>
@@ -1139,8 +1147,14 @@ function engineRate(e){
 const cleanVal = id => $(id).value.replace(/\s+/g, '');
 // Words that look rare in an address but are found in seconds to minutes: short, and starting with the
 // letters and digits most addresses start with.
-const IDEAS = [['8888', ''], ['DEGEN', ''], ['HODL', ''], ['GOAT', ''], ['CHAD', ''], ['', 'pump'], ['', '777'], ['69', '69']];
-$('ideas').insertAdjacentHTML('beforeend', IDEAS.map(([p, s]) => `<button type="button" data-pre="${p}" data-suf="${s}">${p}…${s} <i></i></button>`).join(''));
+const IDEAS = [
+  ['Start', [['8888', ''], ['DEGEN', ''], ['HODL', ''], ['GOAT', ''], ['CHAD', '']]],
+  ['End', [['', 'pump'], ['', '777'], ['', 'moon'], ['', 'bonk'], ['', 'pepe']]],
+  ['Both ends', [['69', '69'], ['GM', 'gm']]],
+];
+$('ideas').innerHTML = '<span class="ttl">Look rare, found fast</span>' + IDEAS.map(([label, words]) =>
+  `<div class="irow"><span class="lbl">${label}</span><span class="chips">${words.map(([p, s]) =>
+    `<button type="button" data-pre="${p}" data-suf="${s}">${p}…${s} <i></i></button>`).join('')}</span></div>`).join('');
 // Shorter versions of the word that finish within 10 minutes at this rate: keep as many letters as possible,
 // whole parts first, then the quickest. Returns up to two.
 function quicker(a, rate){
@@ -1219,6 +1233,7 @@ function update(){
     b.hidden = !show; ideas += show;
     b.lastChild.textContent = rate ? fmtWait(t) : '';
   });
+  $('ideas').querySelectorAll('.irow').forEach(r => { r.hidden = !r.querySelector('button:not([hidden])'); });
   $('ideas').hidden = !ideas;
   if (slow && rate){
     const q = quicker(a, rate);
