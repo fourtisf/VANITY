@@ -181,6 +181,30 @@ if ((await history(undefined, { message: h1.message })).res.code !== 401) fail('
 if ((await history(generateKeyPairSync('ed25519').privateKey)).res.code !== 401) fail('another key signed in as the paying wallet');
 console.log('address history: the paying wallet signs in and sees its address; reused or foreign signatures refused: ok');
 
+// Key backups: only the page of a paid job leaves one, once, for the paying wallet. Signed in, the wallet adds keypair-file
+// backups and removes addresses; a backup locked by a wallet that signs differently from before is refused.
+const post = (p, body) => api(p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const chk = randomBytes(16).toString('base64');
+const blob = (c = chk) => ({ host: 'vanity.example', iv: randomBytes(12).toString('base64'), ct: randomBytes(80).toString('base64'), chk: c });
+const jobVault = blob();
+if ((await post(`/api/jobs/${job4.id}/vault`, { wallet: key(), vault: jobVault })).code !== 409) fail('another wallet left a key backup for a paid job');
+if ((await post(`/api/jobs/${job4.id}/vault`, { wallet: walletAddress, vault: { ...jobVault, ct: 'short' } })).code !== 400) fail('a malformed key backup was taken');
+if ((await post(`/api/jobs/${job4.id}/vault`, { wallet: walletAddress, vault: jobVault, mode: 'token' })).code !== 200) fail('key backup of a paid job refused');
+if ((await post(`/api/jobs/${job4.id}/vault`, { wallet: walletAddress, vault: blob() })).code !== 409) fail('a key backup was replaced');
+const h2 = await history();
+const mineJ4 = h2.res.addresses.find(h => h.address === j4.address);
+if (!mineJ4 || mineJ4.vault.ct !== jobVault.ct || mineJ4.mode !== 'token' || !/^[0-9a-f]{48}$/.test(h2.res.token)) fail('key backup not listed for its wallet: ' + JSON.stringify(h2.res));
+const token = h2.res.token, fileAddr = key(), handAddr = key(), oddAddr = key();
+if ((await post('/api/vault', { token: 'f'.repeat(48), items: [{ address: fileAddr }] })).code !== 401) fail('changes taken without signing in');
+const added = await post('/api/vault', { token, items: [{ address: fileAddr, vault: blob() }, { address: handAddr, pl: 2 }, { address: oddAddr, vault: blob(randomBytes(16).toString('base64')) }, { address: 'nope' }] });
+const [rf, rh, ro, rn] = added.results || [];
+if (added.code !== 200 || rf.entry.kind !== 'file' || !rf.entry.vault || rh.entry.kind !== 'manual' || rh.entry.prefix !== handAddr.slice(0, 2) || ro.error !== 'mismatch' || rn.error !== 'bad-address')
+  fail('adding addresses: ' + JSON.stringify(added));
+if ((await post('/api/vault/delete', { token, address: fileAddr })).code !== 200) fail('remove refused');
+const h3 = (await history()).res.addresses.map(h => h.address);
+if (h3.includes(fileAddr) || !h3.includes(handAddr) || h3.includes(oddAddr)) fail('wallet list after changes: ' + JSON.stringify(h3));
+console.log('key backups: one per paid job from its paying wallet; signed-in adds and removes; a wallet that signs differently refused: ok');
+
 // Long paid searches are accepted, and the engine takes turns: a one-key search paid after a days-long one is
 // done within a turn or two, and the long one keeps going.
 const pay = async (j, ms) => { report(j.id, addTx(j.pay.reference, j.pay.lamports)); return watch(j.id, ms); };

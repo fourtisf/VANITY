@@ -17,7 +17,7 @@ A website that creates Solana wallet or token addresses starting or ending with 
 | `site.js` | Site name, contact and links from the environment, filled into `{{NAME}}` placeholders in the pages |
 | `public/index.html` | The whole website (HTML, CSS, app JS), including Connect wallet (header) and Fast mode payment |
 | `public/legal.html` | Terms, privacy and refund policy templates |
-| `public/addresses.html` | My addresses (served at `/addresses`): every address made in this browser (localStorage), plus every address a wallet paid for after it signs in (`/api/history`, signed message); balances on request through `/api/balances`. Addresses only, never keys |
+| `public/addresses.html` | My addresses (served at `/addresses`). With `PAY_TO`: empty until the paying wallet signs in (`/api/history`, signed message), then that wallet's addresses, and **Show private key** opens a key backup locked to the wallet (see "Key backups" in README.md). Without `PAY_TO`: the addresses made in this browser (localStorage), never keys. Balances on request through `/api/balances` |
 | `engine/vanity.wgsl` | GPU shader: SHA-512, ed25519, base58 checks. Shared by browser and server |
 | `engine/gpu-engine.js` | WebGPU host code. Shared by browser and server |
 | `engine/pattern.js` | Pattern parsing and odds. Shared by browser and server |
@@ -136,7 +136,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
 | `SOLANA_RPC` | public RPC of the cluster | The public RPC is rate-limited; use a provider URL (Helius, QuickNode, Triton) in production |
 | `PAID_JOBS_FILE` | `./paid-jobs.json` | Where paid jobs wait across restarts (no keys or results, see below) |
-| `HISTORY_FILE` | `./history.json` | Paid addresses with the wallet that paid, for My addresses (no keys) |
+| `HISTORY_FILE` | `./history.json` | Paid addresses with the wallet that paid, for My addresses, with key backups the server cannot open (locked with the wallet's signature). Back it up |
 | `SITE_NAME` | `Plates` | Brand in the header, title and link previews |
 | `SITE_URL` | from the request | Public address, used in link previews |
 | `CONTACT_EMAIL` / `CONTACT_TELEGRAM` | empty | Footer, legal page and refund messages. The server warns at startup if payments are on without one |

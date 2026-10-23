@@ -212,21 +212,36 @@ check(sent.extra.length === 1 && !sent.extra[0].signer && !sent.extra[0].writabl
 check(/^[Aa]/.test(address) && await page.isHidden('#paybox'), 'result');
 console.log(`connect wallet, refused then approved payment, delivery: ok (${address})`);
 
-/* ---- the result: address and key only, and My addresses opens in its own tab so an unsaved key stays here ---- */
+/* ---- the result: address and key, backed up to the paying wallet; My addresses opens in its own tab ---- */
 check(await page.locator('.res [data-act="fund"]').count() === 0, 'result still offers Add SOL');
 check(await page.getAttribute('.res .sub a[href="addresses"]', 'target') === '_blank' && await page.getAttribute('nav.nav a[href="addresses"]', 'target') === '_blank', 'My addresses would leave the result page');
+await page.waitForFunction(() => /^Backed up to /.test(document.querySelector('.res [data-vault]').textContent), null, { timeout: 10000 })
+  .catch(async () => fail('key not backed up: ' + await page.textContent('.res')));
+await page.click('.res [data-act="reveal"]');
+const secret58 = (await page.textContent('.res [data-secret]')).trim();
+check(secret58.length > 80, 'key not shown');
 await page.click('.res [data-act="copyKey"]');
 await page.locator('.res').screenshot({ path: path.join(shots, 'result.png') });
-console.log('result: no Add SOL, My addresses opens in a new tab: ok');
+console.log('result: key backed up to the paying wallet, no Add SOL, My addresses opens in a new tab: ok');
 
-/* ---- My addresses: the new address is listed in this browser, with its key marked saved and its balance on request ---- */
-check(await page.isVisible('.res .sub a[href="addresses"]'), 'result does not link to My addresses');
+/* ---- My addresses: empty until the paying wallet signs in; then its addresses, and each key from its backup ---- */
 lamportsOf.set(address.trim(), 5e7);
 const mine = page;   // the key was copied, so leaving the result page asks nothing
 await mine.goto(base + '/addresses', { waitUntil: 'load' });
+await mine.waitForSelector('#gate:not([hidden])', { timeout: 10000 }).catch(() => fail('My addresses does not ask to connect a wallet'));
+check(await mine.locator('.item').count() === 0 && await mine.isHidden('#bar') && await mine.isHidden('#add'), 'My addresses shows addresses before a wallet signs in');
+await mine.screenshot({ path: path.join(shots, 'my-addresses-locked.png'), fullPage: true });
+const signIn = async () => {
+  await mine.click('#walletBtn');
+  await mine.waitForSelector('#who:not([hidden])', { timeout: 10000 }).catch(async () => fail('wallet sign-in: ' + await mine.textContent('#walletMsg')));
+};
+await signIn();
 const item = mine.locator(`.item[data-addr="${address.trim()}"]`);
-await item.waitFor({ timeout: 5000 }).catch(() => fail('new address not in My addresses'));
-check(/Wallet/.test(await item.textContent()) && /Key saved/.test(await item.textContent()), 'My addresses tags: ' + await item.textContent());
+await item.waitFor({ timeout: 5000 }).catch(() => fail('paid address not listed for its wallet'));
+check(/Wallet/.test(await item.textContent()) && /Key backed up/.test(await item.textContent()), 'My addresses tags: ' + await item.textContent());
+await item.locator('[data-act="key"]').click();
+await item.locator('[data-key]').waitFor({ timeout: 10000 }).catch(async () => fail('key not shown: ' + await item.textContent()));
+check((await item.locator('[data-key]').textContent()).trim() === secret58, 'the key from the backup is not the key of the result');
 await mine.click('#balBtn');
 await mine.waitForFunction(() => /0\.05 SOL in total/.test(document.querySelector('#total').textContent), null, { timeout: 10000 }).catch(async () => fail('balances: ' + await mine.textContent('#bar')));
 check(/0\.05 SOL/.test(await item.locator('.bal').textContent()), 'address balance not shown');
@@ -234,8 +249,8 @@ await mine.screenshot({ path: path.join(shots, 'my-addresses.png'), fullPage: tr
 mine.once('dialog', d => d.accept());
 await item.locator('[data-act="del"]').click();
 await mine.waitForSelector('#empty:not([hidden])', { timeout: 5000 }).catch(() => fail('Remove did not empty the list'));
-// Addresses made before: a downloaded keypair file (its key is checked against its address), a broken one,
-// a downloaded list, and a pasted address.
+// Addresses made before: a downloaded keypair file (its key is checked against its address and backed up to the wallet),
+// a broken one, a downloaded list, and a pasted address.
 const kp = web3.Keypair.generate(), broken = Array.from(web3.Keypair.generate().secretKey), listed = key(), pasted = key();
 broken[63] ^= 1;
 await mine.setInputFiles('#files', [
@@ -243,22 +258,31 @@ await mine.setInputFiles('#files', [
   { name: 'broken.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(broken)) },
   { name: 'my-addresses.csv', mimeType: 'text/csv', buffer: Buffer.from(`address,type,starts_with,ends_with,made,key_saved\n${listed},wallet,${listed.slice(0, 2)},,2026-10-20T10:00:00.000Z,yes\n`) },
 ]);
-await mine.waitForFunction(() => /Added 2 addresses/.test(document.querySelector('#addMsg').textContent), null, { timeout: 5000 })
+await mine.waitForFunction(() => /Added 2 addresses\. 1 key backed up/.test(document.querySelector('#addMsg').textContent), null, { timeout: 10000 })
   .catch(async () => fail('import: ' + await mine.textContent('#addMsg')));
 check(/Skipped: broken\.json \(its key and address do not match\)/.test(await mine.textContent('#addMsg')), 'broken keypair file not refused: ' + await mine.textContent('#addMsg'));
 const fromFile = await mine.textContent(`.item[data-addr="${kp.publicKey.toBase58()}"]`);
-check(/From a keypair file/.test(fromFile) && /Key saved/.test(fromFile), 'keypair file entry: ' + fromFile);
-check(/Wallet/.test(await mine.textContent(`.item[data-addr="${listed}"]`)), 'list entry missing');
+check(/From a keypair file/.test(fromFile) && /Key backed up/.test(fromFile), 'keypair file entry: ' + fromFile);
+check(/Wallet/.test(await mine.textContent(`.item[data-addr="${listed}"]`)) && /No key backup/.test(await mine.textContent(`.item[data-addr="${listed}"]`)), 'list entry missing');
 await mine.fill('#paste', pasted); await mine.click('#pasteBtn');
 await mine.waitForSelector(`.item[data-addr="${pasted}"]`, { timeout: 5000 }).catch(() => fail('pasted address not added'));
 check(await mine.locator('.item').count() === 3, 'three addresses after adding');
-// History: the wallet that paid signs in, and the address it paid for (removed above) comes back, marked as paid.
-await mine.waitForSelector('#walletBox:not([hidden])', { timeout: 10000 }).catch(() => fail('no wallet history box on a paid site'));
-await mine.click('#walletBtn');
-await mine.waitForSelector(`.item[data-addr="${address.trim()}"]`, { timeout: 10000 }).catch(async () => fail('paid address not loaded from the wallet: ' + await mine.textContent('#walletMsg')));
-check(/Paid with/.test(await mine.textContent(`.item[data-addr="${address.trim()}"]`)) && /paid for 1 address; 1 added/.test(await mine.textContent('#walletMsg')), 'wallet history: ' + await mine.textContent('#walletMsg'));
+// Another visit is empty again until the wallet signs in; then the list comes from the server, and the imported key opens.
+await mine.reload({ waitUntil: 'load' });
+await mine.waitForSelector('#gate:not([hidden])', { timeout: 10000 });
+check(await mine.locator('.item').count() === 0, 'list shown after a reload without signing in');
+await signIn();
+await mine.waitForFunction(() => document.querySelectorAll('.item').length === 3, null, { timeout: 5000 }).catch(async () => fail('wallet list after sign-in: ' + await mine.locator('.item').count()));
+check(!(await mine.locator(`.item[data-addr="${address.trim()}"]`).count()), 'a removed address came back');
+const kpItem = mine.locator(`.item[data-addr="${kp.publicKey.toBase58()}"]`);
+await kpItem.locator('[data-act="key"]').click();
+await kpItem.locator('[data-key]').waitFor({ timeout: 10000 }).catch(async () => fail('imported key not shown: ' + await kpItem.textContent()));
+check((await kpItem.locator('[data-key]').textContent()).trim() === VP.b58(kp.secretKey), 'imported key does not match its file');
 await mine.screenshot({ path: path.join(shots, 'my-addresses-added.png'), fullPage: true });
-console.log('My addresses: listed with key saved, balance on request, remove, add from files, a list and a paste, history from the paying wallet: ok');
+await mine.click('#outBtn');
+await mine.waitForSelector('#gate:not([hidden])', { timeout: 5000 });
+check(await mine.locator('.item').count() === 0, 'list still shown after disconnecting');
+console.log('My addresses: empty until the wallet signs in, its key backup opens, balances, remove, add from files, a list and a paste, signed out again: ok');
 
 /* ---- a wallet that can only sign (Bitget's "[object Object]"): the server sends its signed payment ---- */
 const bp = await browser.newPage();

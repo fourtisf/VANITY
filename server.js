@@ -374,16 +374,21 @@ async function runNext() {
 
 /* ---------------- address history ---------------- */
 // Every paid address is kept with the wallet that paid for it, so whoever holds that wallet can list them on
-// My addresses from any device after signing a one-time message with it. Addresses only: keys are never kept.
+// My addresses from any device after signing a one-time message with it. A key is kept only as a vault: the page
+// locks it with a key derived from the wallet's signature of a fixed message, which never reaches this server.
 const history = (() => { try { const v = JSON.parse(readFileSync(CFG.historyFile, 'utf8')); return Array.isArray(v) ? v : []; } catch { return []; } })();
-function remember(job) {
-  if (!job.paid || !job.paid.payer || !job.address) return;
-  history.push({ payer: job.paid.payer, address: job.address, prefix: job.a.preRaw, suffix: job.a.sufRaw, at: Date.now() });
+function saveHistory() {
   if (history.length > 100000) history.splice(0, history.length - 100000);
   try { writeFileSync(CFG.historyFile + '.tmp', JSON.stringify(history)); renameSync(CFG.historyFile + '.tmp', CFG.historyFile); }
   catch (e) { log('could not save the address history:', e.message); }
 }
+function remember(job) {
+  if (!job.paid || !job.paid.payer || !job.address) return;
+  history.push({ payer: job.paid.payer, address: job.address, prefix: job.a.preRaw, suffix: job.a.sufRaw, at: Date.now() });
+  saveHistory();
+}
 const challenges = new Map();   // nonce -> { wallet, message, exp }: a sign-in message waiting for its signature
+const sessions = new Map();     // token -> { wallet, exp }: a signed-in wallet adding to or removing from its list
 function historyChallenge(wallet, req) {
   const t = Date.now();
   for (const [n, c] of challenges) if (c.exp < t) challenges.delete(n);
@@ -393,7 +398,9 @@ function historyChallenge(wallet, req) {
   challenges.set(nonce, { wallet, message, exp: t + 5 * 60000 });
   return message;
 }
+const entryView = ({ address, prefix, suffix, at, mode, kind, vault }) => ({ address, prefix, suffix, at, mode, kind, vault });
 // The addresses a wallet paid for, if the signature over a fresh challenge is that wallet's; each challenge works once.
+// The token that comes with them lets the page add to and remove from that wallet's list for an hour.
 async function historyFor(wallet, message, signature) {
   const nonce = (String(message).match(/^Nonce: ([0-9a-f]{32})$/m) || [])[1], c = nonce && challenges.get(nonce);
   if (!c || c.exp < Date.now() || c.message !== message || c.wallet !== wallet) return null;
@@ -402,8 +409,25 @@ async function historyFor(wallet, message, signature) {
     const key = await subtle.importKey('raw', b58dec(wallet), { name: 'Ed25519' }, false, ['verify']);
     if (!await subtle.verify({ name: 'Ed25519' }, key, Buffer.from(String(signature), 'base64'), Buffer.from(message))) return null;
   } catch { return null; }
-  return history.filter(h => h.payer === wallet).slice(-500).reverse().map(({ address, prefix, suffix, at }) => ({ address, prefix, suffix, at }));
+  const t = Date.now();
+  for (const [k, s] of sessions) if (s.exp < t) sessions.delete(k);
+  if (sessions.size > 10000) sessions.delete(sessions.keys().next().value);
+  const token = randomBytes(24).toString('hex');
+  sessions.set(token, { wallet, exp: t + 3600_000 });
+  return { addresses: history.filter(h => h.payer === wallet).slice(-1000).reverse().map(entryView), token };
 }
+const sessionWallet = token => { const s = sessions.get(String(token || '')); return s && s.exp > Date.now() ? s.wallet : null; };
+// A locked key as the page sends it: the host its unlock message names, AES-GCM nonce and ciphertext (64-byte key
+// plus tag), and a check value that shows whether the wallet signed the same way as for its other keys.
+function vaultBlob(v) {
+  if (!v || typeof v !== 'object') return null;
+  const b64 = (x, n) => typeof x === 'string' && x.length === Math.ceil(n / 3) * 4 && Buffer.from(x, 'base64').length === n;
+  const host = String(v.host || '');
+  if (!/^[a-z0-9.-]{1,100}(:\d{1,5})?$/i.test(host) || !b64(v.iv, 12) || !b64(v.ct, 80) || !b64(v.chk, 16)) return null;
+  return { host, iv: v.iv, ct: v.ct, chk: v.chk };
+}
+// A wallet that signs the unlock message differently each time (some multi-party wallets) could never open its keys.
+const vaultMismatch = (wallet, vault) => history.some(h => h.payer === wallet && h.vault && h.vault.chk !== vault.chk);
 
 function cancel(job, reason) {
   const i = queue.indexOf(job); if (i >= 0) queue.splice(i, 1);
@@ -537,14 +561,69 @@ const server = http.createServer(async (req, res) => {
         const message = historyChallenge(wallet, req);
         return message ? send(res, 200, { message }) : send(res, 503, { error: 'busy' });
       }
-      const addresses = await historyFor(wallet, body.message, body.signature);
-      return addresses ? send(res, 200, { addresses }) : send(res, 401, { error: 'not-signed' });
+      const found = await historyFor(wallet, body.message, body.signature);
+      return found ? send(res, 200, found) : send(res, 401, { error: 'not-signed' });
+    }
+    // My addresses, signed in: add addresses (with their locked keys, from keypair files) or remove one with its key.
+    if ((p === '/api/vault' || p === '/api/vault/delete') && req.method === 'POST') {
+      let body;
+      try { body = await readJson(req, 65536); } catch { return send(res, 400, { error: 'bad-request' }); }
+      const wallet = sessionWallet(body.token);
+      if (!wallet) return send(res, 401, { error: 'signed-out' });
+      const valid = a => (b58dec(a) || []).length === 32;
+      if (p === '/api/vault/delete') {
+        const address = String(body.address || '');
+        if (!valid(address)) return send(res, 400, { error: 'bad-address' });
+        const i = history.findIndex(h => h.payer === wallet && h.address === address);
+        if (i >= 0) { history.splice(i, 1); saveHistory(); }
+        return send(res, 200, { ok: true });
+      }
+      const items = Array.isArray(body.items) ? body.items.slice(0, 100) : [];
+      let room = 1000 - history.filter(h => h.payer === wallet).length, changed = false;
+      const results = items.map(it => {
+        const address = String((it && it.address) || '');
+        if (!valid(address)) return { address, error: 'bad-address' };
+        const vault = it.vault ? vaultBlob(it.vault) : null;
+        if (it.vault && !vault) return { address, error: 'bad-vault' };
+        if (vault && vaultMismatch(wallet, vault)) return { address, error: 'mismatch' };
+        const old = history.find(h => h.payer === wallet && h.address === address);
+        if (old) {
+          if (vault && !old.vault) { old.vault = vault; changed = true; }
+          return { address, entry: entryView(old) };
+        }
+        if (room <= 0) return { address, error: 'full' };
+        const cut = n => Math.max(0, Math.min(address.length, n | 0));
+        const entry = { payer: wallet, address, prefix: address.slice(0, cut(it.pl)), suffix: address.slice(address.length - cut(it.sl)),
+          at: +it.at > 1.5e12 && +it.at <= Date.now() ? +it.at : Date.now(),
+          mode: ['wallet', 'token'].includes(it.mode) ? it.mode : undefined, kind: vault ? 'file' : 'manual', vault: vault || undefined };
+        history.push(entry); room--; changed = true;
+        return { address, entry: entryView(entry) };
+      });
+      if (changed) saveHistory();
+      return send(res, 200, { results });
     }
     if (p === '/api/jobs' && req.method === 'POST') return createJob(req, res);
-    const m = p.match(/^\/api\/jobs\/([0-9a-f]{32})(\/paid|\/send)?$/);
+    const m = p.match(/^\/api\/jobs\/([0-9a-f]{32})(\/paid|\/send|\/vault)?$/);
     if (m) {
       const job = jobs.get(m[1]);
       if (!job) return send(res, 404, { error: 'gone' });
+      if (m[2] === '/vault') {
+        // The page that opened this paid result locks its key to the paying wallet and leaves it here, once.
+        if (req.method !== 'POST') return send(res, 405, { error: 'method' });
+        let body;
+        try { body = await readJson(req, 2048); } catch { return send(res, 400, { error: 'bad-request' }); }
+        const vault = vaultBlob(body.vault), payer = job.paid && job.paid.payer;
+        if (job.status !== 'done' || !payer || body.wallet !== payer) return send(res, 409, { error: 'not-yours' });
+        if (!vault) return send(res, 400, { error: 'bad-vault' });
+        const entry = history.find(h => h.payer === payer && h.address === job.address);
+        if (!entry) return send(res, 404, { error: 'gone' });
+        if (entry.vault) return send(res, 409, { error: 'already' });
+        if (vaultMismatch(payer, vault)) return send(res, 409, { error: 'mismatch' });
+        entry.vault = vault;
+        if (['wallet', 'token'].includes(body.mode)) entry.mode = body.mode;
+        saveHistory();
+        return send(res, 200, { ok: true });
+      }
       if (m[2] === '/send') {
         if (req.method !== 'POST' || !job.pay) return send(res, 405, { error: 'method' });
         if (job.status !== 'unpaid') return send(res, 409, { error: 'not-unpaid' });

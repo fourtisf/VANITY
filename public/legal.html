@@ -57,7 +57,7 @@ ul{padding-left:22px}
     <p>{{SITE_NAME}} makes Solana keypairs whose address starts or ends with characters you choose. {{#PAID}}The search runs on our server, and the result is sealed so that only your browser can open it.{{/PAID}}{{^PAID}}On your device, the search runs in your own browser. In Fast mode, it runs on our server and the result is sealed so that only your browser can open it.{{/PAID}}</p>
     <h3>Your key is your responsibility</h3>
     <ul>
-      <li>Whoever holds the private key controls the wallet or token. Save it before you close the page. We keep no copy and cannot recover a lost key.</li>
+      <li>Whoever holds the private key controls the wallet or token. Save it before you close the page. {{#PAID}}If you sign the key backup message, a copy locked to your paying wallet is kept for My addresses. Only a signature from that wallet opens it, so we cannot open it or recover a key for you, and removing the address on My addresses deletes it.{{/PAID}}{{^PAID}}We keep no copy and cannot recover a lost key.{{/PAID}}</li>
       <li>{{#PAID}}Our server creates the key and holds it for a moment before sealing it to your browser and deleting it.{{/PAID}}{{^PAID}}In Fast mode our server creates the key and holds it for a moment before sealing it to your browser and deleting it. For wallets that will hold significant funds, use the on-device search instead.{{/PAID}}</li>
       <li>Every key is checked against its address before it is shown, but you should still test a new wallet with a small amount first.</li>
     </ul>
@@ -80,7 +80,7 @@ ul{padding-left:22px}
       <li>The characters you search for and a public encryption key made by your browser.</li>
       <li>Your IP address, used to limit how many searches one visitor runs at a time.</li>
       <li>Your payment, which is public on the Solana blockchain: the paying wallet address, the amount and the transaction id.</li>
-      <li>For a paid search, the address it made, kept with the paying wallet so that whoever holds that wallet can list it on My addresses after signing a message with it. The key is never kept.</li>
+      <li>For a paid search, the address it made, kept with the paying wallet so that whoever holds that wallet can list it on My addresses after signing a message with it. If you sign the key backup message, the key is kept with it, locked with a key that comes from your wallet's signature of that message, which our server never receives. Removing the address on My addresses deletes both.</li>
     </ul>
     <p>Our server logs record the time, search id, the characters searched for, the paying wallet and the transaction id. We keep them for support, refunds and accounting. Until a paid result reaches your browser, the server also saves the search request (never the key or the result) so that a restart does not lose it.</p>
     <h3>Others involved</h3>

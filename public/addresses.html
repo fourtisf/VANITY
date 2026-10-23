@@ -1,5 +1,8 @@
 <!doctype html>
-<!-- My addresses: the addresses this browser made on the site, read from localStorage. Addresses only: keys are never stored. -->
+<!-- My addresses. With payments on, the list belongs to a wallet: it stays empty until the visitor connects the wallet they
+     paid with and signs in, then shows that wallet's addresses from the server, and a key when the wallet unlocks its
+     backup (locked in the browser with a key derived from the wallet's signature, which never leaves the page).
+     Without payments, it lists the addresses made in this browser (localStorage), never their keys. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -7,7 +10,7 @@
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0B0C15">
 <title>My addresses | {{SITE_NAME}}</title>
-<meta name="description" content="The Solana addresses you made on {{SITE_NAME}}, saved in your browser.">
+<meta name="description" content="The Solana addresses you made on {{SITE_NAME}}, and their keys for the wallet that paid.">
 <meta name="robots" content="noindex">
 <link rel="canonical" href="{{ORIGIN}}/addresses">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -73,6 +76,22 @@ h2{font:700 24px var(--display);margin:0 0 6px}
 .addmsg{margin:12px 0 0!important;color:var(--text)!important}
 .addmsg[hidden]{display:none}
 .fine{margin-top:30px;color:var(--dim);font-size:14.5px}
+.fine[hidden],.add[hidden],.who[hidden],.lead[hidden]{display:none}
+.btn.primary{background:var(--teal);border-color:var(--teal);color:#06241D;font-weight:800;padding:10px 20px}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.6;cursor:default}
+.gate{text-align:center;padding:40px 28px!important}
+.gate p{max-width:52ch;margin:0 auto 18px!important}
+.gate .addrow{justify-content:center}
+.gate .lock{display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:18px;background:var(--teal-wash);color:var(--teal);margin-bottom:12px}
+.who{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 18px;padding:12px 16px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
+.who img{width:26px;height:26px;border-radius:8px}
+.who span{margin-right:auto;font-family:var(--mono);font-weight:700}
+.who em{font-style:normal;color:var(--dim);font-family:var(--sans);font-weight:600;margin-right:6px}
+.kbox{margin-top:12px;padding:14px 16px;border-radius:14px;background:var(--well);border:1px solid rgba(255,196,125,.3)}
+.kval{font:500 14.5px/1.5 var(--mono);color:var(--text);word-break:break-all;user-select:all}
+.knote{margin:10px 0 0;color:var(--warn);font-size:14px}
+.imsg{margin:10px 0 0;color:var(--warn);font-size:14.5px}
 @media (max-width:640px){ .item{padding:16px} #empty,.add{padding:20px 18px} .addr{font-size:15px} }
 </style>
 </head>
@@ -83,14 +102,18 @@ h2{font:700 24px var(--display);margin:0 0 6px}
 </div></header>
 <main>
   <h1>My addresses</h1>
-  <p class="lead">Your history of addresses made on {{SITE_NAME}}. The ones made in this browser are added by themselves; connect the wallet you paid with to bring in every address it paid for, on any device. Private keys are never saved: keep the key you copied or downloaded.</p>
+  <p class="lead" id="leadWallet" hidden>Every address you paid for, with its private key. Connect the wallet you paid with and sign in to see them, on any device.</p>
+  <p class="lead" id="leadLocal" hidden>Your history of addresses made in this browser. Private keys are never saved here: keep the key you copied or downloaded.</p>
 
-  <section class="add" id="walletBox" hidden style="margin:0 0 22px">
-    <h2>Addresses you paid for</h2>
-    <p>Connect the wallet you paid with and sign a short message to list every address it paid for. Signing is free and sends no transaction.</p>
-    <div class="addrow" id="walletRow"><button type="button" class="btn" id="walletBtn">Connect wallet</button></div>
+  <section class="add gate" id="gate" hidden>
+    <span class="lock"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+    <h2>Connect your wallet</h2>
+    <p>Your addresses show here once you connect the wallet you paid with and sign a short message. Signing is free and sends no transaction.</p>
+    <div class="addrow" id="walletRow"><button type="button" class="btn primary" id="walletBtn">Connect wallet</button></div>
     <p class="addmsg" id="walletMsg" hidden></p>
   </section>
+
+  <div class="who" id="who" hidden><img id="whoIcon" alt=""><span><em>Connected</em><b id="whoAddr"></b></span><button type="button" class="btn" id="outBtn">Disconnect</button></div>
 
   <div class="bar" id="bar" hidden>
     <span class="count" id="count"></span>
@@ -104,12 +127,12 @@ h2{font:700 24px var(--display);margin:0 0 6px}
 
   <section id="empty" hidden>
     <h2>Nothing here yet</h2>
-    <p>Addresses you make in this browser show up here by themselves. <a href="./#make">Make your first one</a>, or add the ones you made before below.</p>
+    <p id="emptyText"></p>
   </section>
 
-  <section class="add" id="add">
+  <section class="add" id="add" hidden>
     <h2>Add addresses you made before</h2>
-    <p>Addresses made before this list existed, or in another browser, are not in it yet. Choose the keypair files you downloaded (each is named after its address, usually in your Downloads folder) or a list downloaded from this page, or paste an address. Keypair files are only read here to find their address: the key is not saved or sent anywhere.</p>
+    <p id="addText"></p>
     <div class="addrow">
       <label class="btn" for="files">Choose files</label>
       <input type="file" id="files" accept=".json,.csv,application/json,text/csv" multiple hidden>
@@ -117,9 +140,10 @@ h2{font:700 24px var(--display);margin:0 0 6px}
       <button type="button" class="btn" id="pasteBtn">Add</button>
     </div>
     <p class="addmsg" id="addMsg" hidden></p>
+    <p class="addmsg" id="localRow" hidden></p>
   </section>
 
-  <p class="fine">Show balances sends these addresses to our server, which looks them up on Solana. Clearing your browser's site data also clears this list, so use Download list to keep a copy.</p>
+  <p class="fine" id="fine" hidden></p>
 </main>
 <script>
 (() => {
@@ -135,40 +159,105 @@ h2{font:700 24px var(--display);margin:0 0 6px}
   function b58(b){let z=0;while(z<b.length&&b[z]===0)z++;const d=[0];for(let i=z;i<b.length;i++){let c=b[i];for(let j=0;j<d.length;j++){c+=d[j]<<8;d[j]=c%58;c=(c/58)|0;}while(c){d.push(c%58);c=(c/58)|0;}}let s='';for(let k=0;k<z;k++)s+='1';for(let k=d.length-1;k>=0;k--)s+=ALPH[d[k]];return s;}
   function b58len(s){let n=0n;for(const c of s){const d=ALPH.indexOf(c);if(d<0)return -1;n=n*58n+BigInt(d);}let len=0;while(n){len++;n>>=8n;}for(const c of s){if(c!=='1')break;len++;}return len;}
   const isAddress = s => ADDR.test(s) && b58len(s) === 32;
+  const toB64 = u8 => btoa(String.fromCharCode(...u8));
+  const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const short = a => `${a.slice(0, 4)}…${a.slice(-4)}`;
+  const te = new TextEncoder();
   let cluster = 'mainnet', balances = null;
+  // walletMode: null until the server answers, then true where searches are paid. session: the signed-in wallet.
+  let walletMode = null, session = null;
+  const keys = new Map(), shown = new Set(), itemMsg = new Map();   // keys opened in this visit, shown ones, per-address notes
 
+  // The list on screen: the signed-in wallet's addresses on a paid site, else the ones made in this browser.
+  function entries(){
+    if (!walletMode) return load();
+    if (!session) return [];
+    const local = new Map(load().map(x => [x.address, x]));
+    return session.entries.map(h => {
+      const l = local.get(h.address) || {};
+      return { address: h.address, pl: String(h.prefix || '').length, sl: String(h.suffix || '').length, at: h.at, mode: h.mode || l.mode,
+        source: h.kind === 'file' ? 'file' : h.kind === 'manual' ? 'manual' : 'paid', vault: h.vault };
+    });
+  }
+  const tagOf = x => x.mode === 'token' ? 'Token mint' : x.mode === 'wallet' ? 'Wallet' : x.source === 'file' ? 'From a keypair file' : x.source === 'manual' ? 'Added by hand' : '';
   function render(){
-    const list = load();
-    $('empty').hidden = !!list.length; $('bar').hidden = !list.length;
+    const list = entries(), wm = walletMode, ready = wm === false || !!(wm && session);
+    $('leadWallet').hidden = !wm; $('leadLocal').hidden = wm !== false;
+    $('gate').hidden = !(wm && !session); $('who').hidden = !(wm && session);
+    if (wm && session){ $('whoAddr').textContent = short(session.account.address); $('whoIcon').src = session.w.icon; }
+    $('empty').hidden = !ready || !!list.length; $('bar').hidden = !ready || !list.length;
+    $('add').hidden = !ready; $('fine').hidden = !ready; $('clearBtn').hidden = !!wm;
+    $('emptyText').innerHTML = wm ? 'This wallet has not paid for an address yet. <a href="./#make">Make your first one</a>, or add the ones you made before below.'
+      : 'Addresses you make in this browser show up here by themselves. <a href="./#make">Make your first one</a>, or add the ones you made before below.';
+    $('addText').textContent = wm
+      ? 'Choose the keypair files you downloaded (each is named after its address, usually in your Downloads folder) to add the address with its key, locked to this wallet so only it can show the key. A list downloaded from this page, or a pasted address, adds the address only.'
+      : 'Addresses made before this list existed, or in another browser, are not in it yet. Choose the keypair files you downloaded (each is named after its address, usually in your Downloads folder) or a list downloaded from this page, or paste an address. Keypair files are only read here to find their address: the key is not saved or sent anywhere.';
+    $('fine').textContent = wm
+      ? 'A key backup is locked in your browser with a key that comes from your wallet’s signature, which never reaches our server, so we cannot open it. Remove deletes an address and its key backup from our server. Show balances sends the addresses to our server, which looks them up on Solana.'
+      : 'Show balances sends these addresses to our server, which looks them up on Solana. Clearing your browser’s site data also clears this list, so use Download list to keep a copy.';
     $('count').textContent = `${list.length} ${list.length === 1 ? 'address' : 'addresses'}`;
     $('total').textContent = balances ? `${sol(list.reduce((t, x) => t + (balances[x.address] || 0), 0))} SOL in total` : '';
-    const unsaved = list.filter(x => x.keySaved === false).length;
+    const unsaved = wm ? 0 : list.filter(x => x.keySaved === false).length;
     $('msg').hidden = !unsaved;
     $('msg').textContent = unsaved ? `${unsaved === 1 ? 'One address was' : unsaved + ' addresses were'} made without copying or downloading the key. If that page is closed, nobody can use ${unsaved === 1 ? 'it' : 'them'}, so do not send SOL there.` : '';
+    const local = wm && session ? localOnly() : [];
+    $('localRow').hidden = !local.length;
+    $('localRow').innerHTML = local.length ? `This browser also has ${local.length} ${local.length === 1 ? 'address' : 'addresses'} that ${local.length === 1 ? 'is' : 'are'} not in this wallet’s list. <button type="button" class="btn" id="localBtn">Add ${local.length === 1 ? 'it' : 'them'}</button>` : '';
     $('list').innerHTML = list.map(x => {
       const a = x.address, cut = v => Math.max(0, Math.min(a.length, v | 0)), pl = cut(x.pl), sl = cut(x.sl);
       const scan = `https://solscan.io/account/${a}${cluster === 'mainnet' ? '' : '?cluster=' + cluster}`;
       const made = isFinite(x.at) ? new Date(x.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
+      const tag = tagOf(x), open = shown.has(a) && keys.has(a), note = itemMsg.get(a);
+      const keyTag = wm ? (x.vault ? '<span class="tag ok">Key backed up</span>' : '<span class="tag warn">No key backup</span>')
+        : x.keySaved === true ? '<span class="tag ok">Key saved</span>' : x.keySaved === false ? '<span class="tag warn">Key not saved</span>' : '';
       return `<article class="item" data-addr="${a}">
         <div class="addr"><span class="p">${a.slice(0, pl)}</span>${a.slice(pl, a.length - sl)}<span class="s">${a.slice(a.length - sl)}</span></div>
-        <div class="meta">${(t => t ? `<span class="tag">${t}</span>` : '')(x.mode === 'token' ? 'Token mint' : x.mode === 'wallet' ? 'Wallet' : x.source === 'file' ? 'From a keypair file' : x.source === 'manual' ? 'Added by hand' : '')}${x.payer && ADDR.test(x.payer) ? `<span class="tag paid">Paid with ${x.payer.slice(0, 4)}…${x.payer.slice(-4)}</span>` : ''}${x.keySaved === true ? '<span class="tag ok">Key saved</span>' : x.keySaved === false ? '<span class="tag warn">Key not saved</span>' : ''}${made ? `<span>${x.source === 'manual' ? 'Added' : 'Made'} ${made}</span>` : ''}${balances && a in balances ? `<span class="bal">${sol(balances[a])} SOL</span>` : ''}</div>
-        <div class="acts"><button type="button" class="btn" data-act="copy">Copy address</button><a class="btn" href="${scan}" target="_blank" rel="noopener">Solscan</a><button type="button" class="btn danger" data-act="del">Remove</button></div>
+        <div class="meta">${tag ? `<span class="tag">${tag}</span>` : ''}${keyTag}${made ? `<span>${x.source === 'manual' ? 'Added' : 'Made'} ${made}</span>` : ''}${balances && a in balances ? `<span class="bal">${sol(balances[a])} SOL</span>` : ''}</div>
+        <div class="acts"><button type="button" class="btn" data-act="copy">Copy address</button>${wm && x.vault ? `<button type="button" class="btn" data-act="key">${open ? 'Hide private key' : 'Show private key'}</button>` : ''}<a class="btn" href="${scan}" target="_blank" rel="noopener">Solscan</a><button type="button" class="btn danger" data-act="del">Remove</button></div>
+        ${open ? `<div class="kbox"><div class="kval" data-key>${b58(keys.get(a))}</div><div class="acts"><button type="button" class="btn" data-act="copyKey">Copy key</button><button type="button" class="btn" data-act="dl">Download keypair</button></div>
+          <p class="knote">Anyone with this key controls the ${x.mode === 'token' ? 'mint' : 'wallet'}. Never share it, and never paste it into a site you do not trust.</p></div>` : ''}
+        ${note ? `<p class="imsg">${esc(note)}</p>` : ''}
       </article>`;
     }).join('');
   }
+  const flash = (b, t) => { const old = b.textContent; b.textContent = t; setTimeout(() => { b.textContent = old; }, 1500); };
 
-  $('list').addEventListener('click', e => {
+  $('list').addEventListener('click', async e => {
     const b = e.target.closest('button[data-act]'); if (!b) return;
-    const a = b.closest('.item').dataset.addr;
-    if (b.dataset.act === 'copy') navigator.clipboard.writeText(a).then(() => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy address'; }, 1500); }, () => {});
-    if (b.dataset.act === 'del' && confirm('Remove this address from the list? The wallet itself is not affected.')){ save(load().filter(x => x.address !== a)); render(); }
+    const a = b.closest('.item').dataset.addr, x = entries().find(v => v.address === a); if (!x) return;
+    const act = b.dataset.act;
+    if (act === 'copy') navigator.clipboard.writeText(a).then(() => flash(b, 'Copied'), () => {});
+    if (act === 'key'){ if (shown.has(a)){ shown.delete(a); render(); } else showKey(x, b); }
+    if (act === 'copyKey') navigator.clipboard.writeText(b58(keys.get(a))).then(() => flash(b, 'Copied'), () => {});
+    if (act === 'dl'){
+      const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([JSON.stringify(Array.from(keys.get(a)))], { type: 'application/json' }));
+      link.download = a + '.json'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 2000);
+      flash(b, 'Downloaded');
+    }
+    if (act === 'del'){
+      if (!walletMode){
+        if (confirm('Remove this address from the list? The wallet itself is not affected.')){ save(load().filter(v => v.address !== a)); render(); }
+        return;
+      }
+      if (!confirm(x.vault ? 'Remove this address from your list? Its key backup is deleted from our server too, so keep your own copy of the key first. The wallet itself is not affected.'
+        : 'Remove this address from your list? The wallet itself is not affected.')) return;
+      b.disabled = true;
+      try {
+        await post('api/vault/delete', { token: session.token, address: a });
+        session.entries = session.entries.filter(h => h.address !== a);
+        save(load().filter(v => v.address !== a));
+        forget(a); render();
+      } catch (err) { b.disabled = false; signedOutOr(err, () => { itemMsg.set(a, `Could not remove it: ${errText(err)}.`); render(); }); }
+    }
   });
+  const forget = a => { const k = keys.get(a); if (k) k.fill(0); keys.delete(a); shown.delete(a); itemMsg.delete(a); };
   $('clearBtn').addEventListener('click', () => {
     const n = load().length;
     if (confirm(`Remove all ${n} ${n === 1 ? 'address' : 'addresses'} from this list? Your wallets are not affected.`)){ try { localStorage.removeItem(KEY); } catch {} balances = null; render(); }
   });
   $('csvBtn').addEventListener('click', () => {
-    const rows = [['address', 'type', 'starts_with', 'ends_with', 'made', 'key_saved']].concat(load().map(x => {
+    const rows = [['address', 'type', 'starts_with', 'ends_with', 'made', 'key_saved']].concat(entries().map(x => {
       const pl = Math.max(0, x.pl | 0), sl = Math.max(0, x.sl | 0);
       return [x.address, x.mode === 'token' ? 'token' : 'wallet', x.address.slice(0, pl), sl ? x.address.slice(-sl) : '', isFinite(x.at) ? new Date(x.at).toISOString() : '', x.keySaved === true ? 'yes' : x.keySaved === false ? 'no' : ''];
     }));
@@ -177,7 +266,7 @@ h2{font:700 24px var(--display);margin:0 0 6px}
     document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 2000);
   });
   $('balBtn').addEventListener('click', async () => {
-    const b = $('balBtn'), list = load().slice(0, 100).map(x => x.address);
+    const b = $('balBtn'), list = entries().slice(0, 100).map(x => x.address);
     b.disabled = true; b.textContent = 'Checking…';
     try {
       const r = await fetch('api/balances', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ addresses: list }) });
@@ -186,35 +275,114 @@ h2{font:700 24px var(--display);margin:0 0 6px}
     } catch { b.textContent = 'Could not check, try again'; }
     b.disabled = false; render();
   });
+
+  /* ---- the server: sign in with the paying wallet, and its token for changes ---- */
+  const post = async (url, body) => {
+    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(j.error === 'not-signed' ? 'the signature did not check out; try again' : j.error || 'the server did not answer'), { code: j.error });
+    return j;
+  };
+  const errText = e => { const m = e && (typeof e === 'string' ? e : e.message); return m && m !== '[object Object]' ? m : 'the wallet gave no reason'; };
+  const cancelled = e => /reject|denied|declin|cancel/i.test(errText(e)) || (e && e.code === 4001);
+  // A sign-in lasts an hour; after that, the visitor connects again.
+  function signedOutOr(err, other){
+    if (err && err.code !== 'signed-out') return other();
+    signOut(); wmsg('Your sign-in expired after an hour. Connect again to go on.');
+  }
+
+  /* ---- key backups: locked to the wallet with a key derived from its signature of a fixed message ---- */
+  // The same message as on the make page. Ed25519 signatures are deterministic, so the wallet signs it the same way on any
+  // device; the signature never leaves this page.
+  const vaultHost = () => location.hostname.replace(/^www\./, '');
+  const vaultMessage = (host, wallet) => `${host} key vault\n\nSign to lock or unlock the private keys of the addresses this wallet paid for, so you can see them again on My addresses.\n\nOnly sign this message on ${host}: anyone who has this signature can open those keys. Signing is free and sends no transaction.\n\nWallet: ${wallet}`;
+  function vaultKey(host){
+    const s = session;
+    if (!s.vault.has(host)){
+      const p = (async () => {
+        const wallet = s.account.address;
+        const [out] = await s.w.features['solana:signMessage'].signMessage({ account: s.account, message: te.encode(vaultMessage(host, wallet)) });
+        const sig = new Uint8Array(out.signature);
+        if (sig.length !== 64) throw new Error('the wallet returned no signature');
+        const base = await crypto.subtle.importKey('raw', sig, 'HKDF', false, ['deriveKey', 'deriveBits']), salt = te.encode('plates vault 1');
+        const key = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt, info: te.encode('key ' + wallet) }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+        const chk = toB64(new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: te.encode('check ' + wallet) }, base, 128)));
+        return { key, chk, host };
+      })();
+      s.vault.set(host, p);
+      p.catch(() => s.vault.delete(host));   // a refusal can be retried
+    }
+    return s.vault.get(host);
+  }
+  async function lock(address, sk){
+    const v = await vaultKey(vaultHost()), iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: te.encode(address) }, v.key, sk));
+    return { host: v.host, iv: toB64(iv), ct: toB64(ct), chk: v.chk };
+  }
+  async function showKey(x, b){
+    const a = x.address;
+    if (keys.has(a)){ shown.add(a); return render(); }
+    b.disabled = true; b.textContent = `Sign in ${session.w.name}…`;
+    try {
+      const v = await vaultKey(x.vault.host);
+      let sk;
+      try { sk = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(x.vault.iv), additionalData: te.encode(a) }, v.key, fromB64(x.vault.ct))); }
+      catch { throw new Error(v.chk !== x.vault.chk ? 'this wallet signed the unlock message differently from when the key was backed up, so it cannot open it' : 'the backup is damaged'); }
+      const kp = await keypairOf(Array.from(sk));
+      kp.sk.fill(0);
+      if (kp.address !== a){ sk.fill(0); throw new Error('the key does not belong to this address'); }
+      keys.set(a, sk); shown.add(a); itemMsg.delete(a);
+    } catch (e) {
+      itemMsg.set(a, cancelled(e) ? 'You cancelled it in your wallet.' : `Could not show the key: ${errText(e)}.`);
+    }
+    render();
+  }
+
   /* ---- adding addresses made before ---- */
-  // Adds entries not in the list yet and keeps the list newest first. Returns how many were new.
-  function addAll(entries){
+  // Adds entries not in the local list yet and keeps it newest first. Returns how many were new.
+  function addAll(list0){
     const list = load(), byAddr = new Map(list.map(x => [x.address, x]));
-    const fresh = entries.filter(x => {
-      const old = byAddr.get(x.address);
-      if (old){ if (x.payer && !old.payer) old.payer = x.payer; return false; }   // known already: only learn who paid
-      byAddr.set(x.address, x); return true;
-    });
+    const fresh = list0.filter(x => { if (byAddr.has(x.address)) return false; byAddr.set(x.address, x); return true; });
     save(list.concat(fresh).sort((a, b) => (b.at || 0) - (a.at || 0)));
     if (fresh.length && balances){ balances = null; $('balBtn').textContent = 'Show balances'; }   // the total would leave the new ones out
     render();
     return fresh.length;
   }
+  // Adds entries to the signed-in wallet's list on the server. Returns how many were new, and why any were refused.
+  async function addToWallet(list0){
+    const known = new Set(session.entries.map(h => h.address)), out = { added: 0, keys: 0, failed: [] };
+    for (let i = 0; i < list0.length; i += 100){
+      const { results } = await post('api/vault', { token: session.token, items: list0.slice(i, i + 100).map(x => ({ address: x.address, pl: x.pl, sl: x.sl, mode: x.mode, at: x.at, vault: x.vault })) });
+      for (const r of results){
+        if (!r.entry){ out.failed.push(`${short(r.address)} (${r.error === 'mismatch' ? 'this wallet signed differently from before' : r.error === 'full' ? 'the list is full' : r.error})`); continue; }
+        const j = session.entries.findIndex(h => h.address === r.address);
+        if (j >= 0) session.entries[j] = r.entry; else session.entries.unshift(r.entry);
+        if (!known.has(r.address)) out.added++;
+        if (r.entry.vault && list0.find(x => x.address === r.address && x.vault)) out.keys++;
+      }
+    }
+    session.entries.sort((a, b) => (b.at || 0) - (a.at || 0));
+    if (out.added && balances){ balances = null; $('balBtn').textContent = 'Show balances'; }
+    render();
+    return out;
+  }
+  // Addresses in this browser's list that are not in the signed-in wallet's list (and were not paid for by another wallet).
+  const localOnly = () => { const known = new Set(session.entries.map(h => h.address)); return load().filter(x => !known.has(x.address) && (!x.payer || x.payer === session.account.address)); };
   // A keypair file is the 64-byte secret key (seed, then public key) as a JSON array. Its address counts only
   // if a signature made with the seed checks out against the public key in the file.
-  async function keypairAddress(arr){
+  async function keypairOf(arr){
     if (!Array.isArray(arr) || arr.length !== 64 || arr.some(n => !Number.isInteger(n) || n < 0 || n > 255)) throw new Error('not a keypair file');
     const sk = Uint8Array.from(arr), pub = sk.slice(32);
     const p8 = new Uint8Array([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20, ...sk.subarray(0, 32)]);
-    sk.fill(0);
     try {
       const priv = await crypto.subtle.importKey('pkcs8', p8, { name: 'Ed25519' }, false, ['sign']);
-      const msg = new TextEncoder().encode('plates address check');
+      const msg = te.encode('plates address check');
       const sig = await crypto.subtle.sign({ name: 'Ed25519' }, priv, msg);
       const pk = await crypto.subtle.importKey('raw', pub, { name: 'Ed25519' }, false, ['verify']);
       if (!await crypto.subtle.verify({ name: 'Ed25519' }, pk, sig, msg)) throw new Error('its key and address do not match');
-    } finally { p8.fill(0); }
-    return b58(pub);
+    } catch (e) { sk.fill(0); throw e; }
+    finally { p8.fill(0); }
+    return { address: b58(pub), sk };
   }
   function csvEntries(text){
     const rows = text.trim().split(/\r?\n/).map(r => r.split(',').map(c => c.trim()));
@@ -229,29 +397,56 @@ h2{font:700 24px var(--display);margin:0 0 6px}
     });
   }
   const addMsg = t => { $('addMsg').textContent = t; $('addMsg').hidden = !t; };
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   $('files').addEventListener('change', async e => {
-    const files = [...e.target.files], entries = [], skipped = [];
+    const files = [...e.target.files], list0 = [], skipped = [];
+    e.target.value = '';
+    let noLock = '';
     for (const f of files){
       try {
         const text = await f.text();
-        if (/\.csv$/i.test(f.name) || /^address,/.test(text)) entries.push(...csvEntries(text));
-        else entries.push({ address: await keypairAddress(JSON.parse(text)), pl: 0, sl: 0, at: f.lastModified || Date.now(), keySaved: true, source: 'file' });
+        if (/\.csv$/i.test(f.name) || /^address,/.test(text)){ list0.push(...csvEntries(text)); continue; }
+        const { address, sk } = await keypairOf(JSON.parse(text));
+        const x = { address, pl: 0, sl: 0, at: f.lastModified || Date.now(), keySaved: true, source: 'file' };
+        if (walletMode && session && !noLock){
+          try { addMsg(`Sign the key backup message in ${session.w.name}. It is free and sends nothing.`); x.vault = await lock(address, sk); }
+          catch (err) { noLock = cancelled(err) ? 'you cancelled the key backup message' : errText(err); }
+        }
+        sk.fill(0);
+        list0.push(x);
       } catch (err) { skipped.push(`${f.name} (${err instanceof SyntaxError ? 'not a keypair file' : err.message})`); }
     }
-    e.target.value = '';
-    const n = addAll(entries), dup = entries.length - n;
-    addMsg([n ? `Added ${n} ${n === 1 ? 'address' : 'addresses'}.` : 'Nothing new to add.', dup ? `${dup} already in the list.` : '', skipped.length ? `Skipped: ${skipped.join(', ')}.` : ''].filter(Boolean).join(' '));
+    try {
+      if (walletMode && session){
+        const out = await addToWallet(list0);
+        addMsg([out.added ? `Added ${plural(out.added, 'address', 'addresses')}.` : 'Nothing new to add.', out.keys ? `${plural(out.keys, 'key', 'keys')} backed up to this wallet.` : '',
+          noLock ? `Keys were not backed up: ${noLock}.` : '', out.failed.length ? `Refused: ${out.failed.join(', ')}.` : '', skipped.length ? `Skipped: ${skipped.join(', ')}.` : ''].filter(Boolean).join(' '));
+      } else {
+        const n = addAll(list0), dup = list0.length - n;
+        addMsg([n ? `Added ${plural(n, 'address', 'addresses')}.` : 'Nothing new to add.', dup ? `${dup} already in the list.` : '', skipped.length ? `Skipped: ${skipped.join(', ')}.` : ''].filter(Boolean).join(' '));
+      }
+    } catch (err) { signedOutOr(err, () => addMsg(`Could not add them: ${errText(err)}.`)); }
   });
-  const addPasted = () => {
+  const addPasted = async () => {
     const a = $('paste').value.trim();
     if (!isAddress(a)){ addMsg('That is not a Solana address.'); return; }
-    addMsg(addAll([{ address: a, pl: 0, sl: 0, at: Date.now(), source: 'manual' }]) ? 'Added.' : 'That address is already in the list.');
-    $('paste').value = '';
+    const x = { address: a, pl: 0, sl: 0, at: Date.now(), source: 'manual' };
+    try {
+      if (walletMode && session){ const out = await addToWallet([x]); addMsg(out.added ? 'Added.' : out.failed.length ? `Refused: ${out.failed[0]}.` : 'That address is already in the list.'); }
+      else addMsg(addAll([x]) ? 'Added.' : 'That address is already in the list.');
+      $('paste').value = '';
+    } catch (err) { signedOutOr(err, () => addMsg(`Could not add it: ${errText(err)}.`)); }
   };
   $('pasteBtn').addEventListener('click', addPasted);
   $('paste').addEventListener('keydown', e => { if (e.key === 'Enter') addPasted(); });
+  $('localRow').addEventListener('click', async e => {
+    if (!e.target.closest('#localBtn')) return;
+    e.target.disabled = true;
+    try { const out = await addToWallet(localOnly()); addMsg(`Added ${plural(out.added, 'address', 'addresses')} from this browser to this wallet’s list.`); }
+    catch (err) { signedOutOr(err, () => addMsg(`Could not add them: ${errText(err)}.`)); }
+  });
 
-  /* ---- addresses a wallet paid for: connect it, sign a one-time message, and the server lists them ---- */
+  /* ---- connect the wallet that paid, and sign in with a one-time message ---- */
   const wallets = [];
   function register(...ws){
     for (const w of ws) if (w && w.features && w.features['standard:connect'] && w.features['solana:signMessage'] && !wallets.includes(w)) wallets.push(w);
@@ -260,14 +455,8 @@ h2{font:700 24px var(--display);margin:0 0 6px}
   window.addEventListener('wallet-standard:register-wallet', ({ detail }) => { try { detail({ register }); } catch {} });
   try { window.dispatchEvent(new CustomEvent('wallet-standard:app-ready', { detail: Object.freeze({ register }) })); } catch {}
   const wmsg = t => { $('walletMsg').textContent = t; $('walletMsg').hidden = !t; };
-  const post = async (url, body) => {
-    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error === 'not-signed' ? 'the signature did not check out; try again' : j.error || 'the server did not answer');
-    return j;
-  };
-  const errText = e => { const m = e && (typeof e === 'string' ? e : e.message); return m && m !== '[object Object]' ? m : 'the wallet gave no reason'; };
-  async function loadFrom(w){
+  const connectBtn = () => { $('walletRow').innerHTML = '<button type="button" class="btn primary" id="walletBtn">Connect wallet</button>'; };
+  async function signIn(w){
     $('walletRow').querySelectorAll('button').forEach(b => { b.disabled = true; });
     try {
       wmsg(`Connecting to ${w.name}…`);
@@ -276,34 +465,38 @@ h2{font:700 24px var(--display);margin:0 0 6px}
       if (!account) throw new Error('the wallet shared no account');
       const { message } = await post('api/history/challenge', { wallet: account.address });
       wmsg(`Sign the message in ${w.name}. It is free and sends nothing.`);
-      const [out] = await w.features['solana:signMessage'].signMessage({ account, message: new TextEncoder().encode(message) });
-      const { addresses } = await post('api/history', { wallet: account.address, message, signature: btoa(String.fromCharCode(...new Uint8Array(out.signature))) });
-      const added = addAll(addresses.filter(h => ADDR.test(h.address)).map(h => ({ address: h.address, pl: String(h.prefix || '').length, sl: String(h.suffix || '').length,
-        at: isFinite(h.at) ? h.at : Date.now(), payer: account.address, source: 'wallet' })));
-      const short = `${account.address.slice(0, 4)}…${account.address.slice(-4)}`;
-      wmsg(addresses.length ? `${short} paid for ${addresses.length} ${addresses.length === 1 ? 'address' : 'addresses'}${added ? `; ${added} added to the list` : ', all already in the list'}.`
-        : `No addresses were paid for with ${short} yet. Addresses made before this history existed can still be added below.`);
+      const [out] = await w.features['solana:signMessage'].signMessage({ account, message: te.encode(message) });
+      const r = await post('api/history', { wallet: account.address, message, signature: toB64(new Uint8Array(out.signature)) });
+      session = { w, account, token: r.token, entries: (r.addresses || []).filter(h => ADDR.test(h.address)), vault: new Map() };
+      balances = null; wmsg(''); addMsg(''); connectBtn();
+      render();
     } catch (e) {
-      const t = errText(e);
-      wmsg(/reject|denied|declin|cancel/i.test(t) ? 'You cancelled it in your wallet.' : `Could not load the addresses: ${t}.`);
-    } finally { $('walletRow').querySelectorAll('button').forEach(b => { b.disabled = false; }); }
+      wmsg(cancelled(e) ? 'You cancelled it in your wallet.' : `Could not sign in: ${errText(e)}.`);
+      $('walletRow').querySelectorAll('button').forEach(b => { b.disabled = false; });
+    }
   }
+  function signOut(){
+    const s = session; session = null;
+    for (const a of [...keys.keys()]) forget(a);
+    itemMsg.clear(); balances = null; addMsg(''); connectBtn(); render();
+    try { if (s && s.w.features['standard:disconnect']) s.w.features['standard:disconnect'].disconnect(); } catch {}
+  }
+  $('outBtn').addEventListener('click', () => { signOut(); wmsg(''); });
   $('walletRow').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.w != null) return loadFrom(wallets[+b.dataset.w]);
+    if (b.dataset.w != null) return signIn(wallets[+b.dataset.w]);
     if (!wallets.length) return wmsg('No Solana wallet that can sign in was found in this browser. Open this page in Phantom, Solflare or Backpack, or install one.');
-    if (wallets.length === 1) return loadFrom(wallets[0]);
-    $('walletRow').innerHTML = wallets.map((w, i) => `<button type="button" class="btn wbtn" data-w="${i}"><img src="${String(w.icon).replace(/"/g, '&quot;')}" alt="">${w.name.replace(/[<&>"]/g, '')}</button>`).join('');
+    if (wallets.length === 1) return signIn(wallets[0]);
+    $('walletRow').innerHTML = wallets.map((w, i) => `<button type="button" class="btn wbtn" data-w="${i}"><img src="${esc(w.icon)}" alt="">${esc(w.name)}</button>`).join('');
   });
 
   // Another tab of the site may add an address while this page is open.
   window.addEventListener('storage', e => { if (e.key === KEY || e.key === null) render(); });
   fetch('api/status', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(s => {
-    if (!s) return;
-    if (/^solana:(devnet|testnet)$/.test(s.chain || '')) cluster = s.chain.slice(7);
-    $('walletBox').hidden = !s.pay;   // a history exists only where searches are paid
-    $('balBtn').hidden = false; render();
-  }).catch(() => {});
+    walletMode = !!(s && s.pay);   // a wallet's list exists only where searches are paid
+    if (s && /^solana:(devnet|testnet)$/.test(s.chain || '')) cluster = s.chain.slice(7);
+    $('balBtn').hidden = !s; render();
+  }).catch(() => { walletMode = false; render(); });
   render();
 })();
 </script>

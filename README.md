@@ -22,7 +22,7 @@ engine/pattern.js      Pattern parsing and odds, shared by browser and server
 engine/cpu-worker.mjs  Server CPU fallback (worker_threads; libsodium when installed, else WebCrypto)
 public/index.html      The website
 public/legal.html      Terms, privacy and refund policy (templates: have them reviewed)
-public/addresses.html  My addresses: addresses made in this browser (no keys), balances on request
+public/addresses.html  My addresses: with payments on, the paying wallet's addresses and key backups after it signs in
 public/fonts/          Self-hosted fonts (SIL Open Font License, see LICENSE.txt there)
 public/wallets/        Wallet logos for the Connect wallet list
 public/og.png          Link preview image
@@ -118,7 +118,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `SOLANA_CLUSTER` | `mainnet` | `mainnet`, `devnet` or `testnet`. Use `devnet` to try payments with free SOL |
 | `SOLANA_RPC` | public RPC of the cluster | The public RPC is rate-limited; use a provider URL (Helius, QuickNode, Triton) in production |
 | `PAID_JOBS_FILE` | `./paid-jobs.json` | Where paid jobs wait across restarts (no keys or results, see below) |
-| `HISTORY_FILE` | `./history.json` | Each paid address with the wallet that paid for it, listed on My addresses once that wallet signs in (no keys) |
+| `HISTORY_FILE` | `./history.json` | Each paid address with the wallet that paid for it, listed on My addresses once that wallet signs in, plus its key backup (locked to the wallet, see below) |
 | `SITE_NAME` | `Plates` | Brand shown in the header, title and link previews |
 | `SITE_URL` | from the request | Public address (`https://getplates.fun`), used in link previews |
 | `CONTACT_EMAIL` / `CONTACT_TELEGRAM` | empty | Shown in the footer, the legal page and refund messages. Set one before taking payments |
@@ -135,6 +135,16 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 
 The server still sees each key for a moment while sealing it. The website says this plainly and recommends keeping Fast mode off for wallets that will hold real funds.
 
+### Key backups on My addresses
+
+With payments on, My addresses stays empty until the visitor connects the wallet they paid with and signs a one-time sign-in message (`POST /api/history/challenge`, then `POST /api/history`). It then lists that wallet's addresses, and **Show private key** opens a key from its backup:
+
+1. Before paying, the page asks the wallet to sign a fixed "key vault" message naming the site and the wallet. HKDF-SHA-256 over that signature gives an AES-256-GCM key, kept in the page (and in IndexedDB with the job, as a key that cannot be exported), never sent.
+2. When the result opens and checks out, the page locks the key with it (the address is the associated data) and leaves the locked copy with the server once (`POST /api/jobs/:id/vault`, accepted only for the paying wallet). It is stored in `HISTORY_FILE` with the address.
+3. On My addresses, the wallet signs the same message again. Ed25519 signatures are deterministic, so it derives the same key on any device, opens the copy, and the page checks the key against its address before showing it.
+
+The server stores only the locked copy and cannot open it. A wallet that signs differently each time (some multi-party wallets) could never open its keys, so a second backup whose check value differs from the wallet's first is refused. Signed in, the wallet can add keypair files (backed up the same way), lists and pasted addresses (`POST /api/vault`), and remove an address with its backup (`POST /api/vault/delete`); a sign-in lasts an hour. The vault message warns to sign it only on this site, since anyone with that signature and the stored copies could open the keys.
+
 ## Before a public launch
 
 - **Turn on payments.** Without `PAY_TO` anyone can queue a free server job, limited per IP and by `MAX_EXPECTED_SECONDS`. Set `PAY_TO` to your wallet address and every search is a paid server job costing `PRICE_SOL + PRICE_SOL_PER_HOUR × average hours`: the page drops the free search on the visitor's device, and its texts and the legal page say so. `DEVICE_SEARCH=on` keeps the free device search next to paid Fast mode.
@@ -142,7 +152,7 @@ The server still sees each key for a moment while sealing it. The website says t
 - **Try it on devnet first.** Start with `SOLANA_CLUSTER=devnet`, switch your wallet to devnet, get free SOL from the faucet, and run one search end to end. Then switch to mainnet with a provider URL in `SOLANA_RPC` and pay for one search yourself. `npm run smoke -- <url>` also checks that the server reaches the RPC.
 - **Watch it.** See Monitoring below.
 - One server process uses one GPU. For more GPUs, run one process per GPU and split traffic, or add a coordinator.
-- The API: `GET /api/status`, `POST /api/jobs`, `GET /api/jobs/:id`, `DELETE /api/jobs/:id`, `GET /api/blockhash` (for transfers the page builds), and with payments on `POST /api/jobs/:id/paid`.
+- The API: `GET /api/status`, `POST /api/jobs`, `GET /api/jobs/:id`, `DELETE /api/jobs/:id`, `GET /api/blockhash` (for transfers the page builds), and with payments on `POST /api/jobs/:id/paid`, `POST /api/jobs/:id/send`, `POST /api/jobs/:id/vault`, `POST /api/history/challenge`, `POST /api/history`, `POST /api/vault` and `POST /api/vault/delete`.
 
 ## Connect wallet
 

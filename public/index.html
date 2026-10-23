@@ -216,6 +216,9 @@ h1{margin:18px auto 14px;font:700 clamp(40px,7vw,76px)/.98 var(--display);letter
 .sm.done{color:var(--teal);border-color:rgba(59,227,195,.5)}
 .res .foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding-top:16px;border-top:1px solid var(--line)}
 .res .foot p{margin:0;font-size:15px;color:var(--muted);max-width:44ch}
+.res .vault{margin:-2px 0 16px;font-size:15px;color:var(--muted)}
+.res .vault.ok{color:var(--teal)}
+.res .vault.warn{color:var(--warn)}
 .dl{background:var(--teal);color:var(--teal-ink);border:0;border-radius:14px;padding:12px 20px;font:700 16px var(--display);box-shadow:0 10px 30px -12px rgba(59,227,195,.8)}
 .dl:hover{filter:brightness(1.06)}
 .dl:disabled{filter:grayscale(.6);opacity:.7;cursor:default}
@@ -575,7 +578,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
     <div>
 {{#PAID}}      <h2>Your key, sealed to you and checked by your browser</h2>
       <p>Our server makes the keypair, locks it with a key that only your browser holds, and deletes its own copy. Nobody else can open the result, us included.</p>
-      <p>Your browser then re-derives the address from the key and refuses anything that does not match. Nothing is stored afterwards, so save your key before you close the tab.</p>
+      <p>Your browser then re-derives the address from the key and refuses anything that does not match. It also leaves a copy locked to your wallet, so My addresses can show the key again when that wallet signs. We cannot open that copy.</p>
 {{/PAID}}{{^PAID}}      <h2>Your key, made and checked on your device</h2>
       <p>The keypair is created by your browser's built-in cryptography on your own hardware. Nothing is uploaded, and the page keeps working with your internet switched off.</p>
       <p>Fast mode is the one exception: our server makes the key, locks it with a key only your browser holds, and deletes its copy. For wallets that will hold real money, keep Fast mode off.</p>
@@ -584,7 +587,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
     <ul class="checks">
       <li><span class="ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>{{#PAID}}Every key is re-derived with WebCrypto in your browser before you see it.{{/PAID}}{{^PAID}}Every match from the graphics card is re-derived with WebCrypto before you see it.{{/PAID}}</li>
       <li><span class="ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Fast mode results are opened in your browser and rejected if the key doesn't produce the promised address.</li>
-      <li><span class="ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>Nothing is stored. Close the tab and the key is gone, so save it first.</li>
+      <li><span class="ck"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>{{#PAID}}The backup opens only with your wallet's signature, on any device.{{/PAID}}{{^PAID}}Nothing is stored. Close the tab and the key is gone, so save it first.{{/PAID}}</li>
     </ul>
   </div>
 </section>
@@ -959,6 +962,37 @@ async function walletSend(c, chain, tx, relay){
     return j.signature;
   }
 }
+// Key vault: before paying, the wallet signs a fixed message, and a key derived from that signature locks the new key,
+// which the server keeps for My addresses. Ed25519 signatures are deterministic, so the same wallet signs the same
+// message the same way on any device and unlocks it there; the signature itself never leaves the page.
+const vaultHost = () => location.hostname.replace(/^www\./, '');
+const vaultMessage = (host, wallet) => `${host} key vault\n\nSign to lock or unlock the private keys of the addresses this wallet paid for, so you can see them again on My addresses.\n\nOnly sign this message on ${host}: anyone who has this signature can open those keys. Signing is free and sends no transaction.\n\nWallet: ${wallet}`;
+async function vaultKey(c){
+  const host = vaultHost(), wallet = c.account.address, te = new TextEncoder();
+  const [out] = await c.w.features['solana:signMessage'].signMessage({ account: c.account, message: te.encode(vaultMessage(host, wallet)) });
+  const sig = new Uint8Array(out.signature);
+  if (sig.length !== 64) throw new Error('the wallet returned no signature');
+  const base = await crypto.subtle.importKey('raw', sig, 'HKDF', false, ['deriveKey', 'deriveBits']), salt = te.encode('plates vault 1');
+  const key = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt, info: te.encode('key ' + wallet) }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
+  const chk = toB64(new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: te.encode('check ' + wallet) }, base, 128)));
+  return { key, chk, host, wallet };
+}
+// Locks a verified key to the paying wallet and leaves it with the server. Returns 'ok', 'mismatch' or 'failed'.
+async function vaultSave(job, address, sk, mode){
+  const v = job.vault, iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(address) }, v.key, sk));
+  const body = JSON.stringify({ wallet: v.wallet, mode, vault: { host: v.host, iv: toB64(iv), ct: toB64(ct), chk: v.chk } });
+  for (let i = 0; i < 4; i++){
+    const r = await fetch(`api/jobs/${job.id}/vault`, { method: 'POST', headers: { 'content-type': 'application/json' }, body }).catch(() => null);
+    if (r && r.ok) return 'ok';
+    const j = r ? await r.json().catch(() => ({})) : {};
+    if (j.error === 'already') return 'ok';
+    if (j.error === 'mismatch') return 'mismatch';
+    if (r && r.status < 500) return 'failed';
+    await sleep(2000 * (i + 1));
+  }
+  return 'failed';
+}
 const sentMsg = 'Payment sent. The search starts as soon as it confirms. If nothing happens within a minute, check your wallet before paying again.';
 const paidJob = () => !!(state.job && !state.job.done && (state.job.paid || state.job.paySig));
 const payLeft = () => state.payDeadline - Date.now();
@@ -1057,6 +1091,13 @@ async function pay(){
       payMsg(`${c.w.name} (${shortAddr(c.account.address)}) has ${fmtSol(have / 1e9)} SOL, and this search costs ${p.amount} SOL plus a network fee of about 0.000005 SOL. Add SOL to it, or press Change to pay from another wallet.`);
       return;
     }
+    if (job.vault && job.vault.wallet !== c.account.address) job.vault = null;
+    if (!job.vault && !job.noVault && c.w.features['solana:signMessage']){
+      payMsg(`Sign the key backup message in ${c.w.name}. It is free and sends nothing, and lets this wallet show the key again on My addresses.`);
+      try { job.vault = await vaultKey(c); idbPut(job); }
+      catch (e) { job.noVault = true; console.error(`${c.w.name} did not sign the key backup message:`, e); }
+      if (job !== state.job) return;
+    }
     payMsg(`Approve the payment of ${p.amount} SOL in ${c.w.name}.`);
     const r = await fetch('api/blockhash', { cache: 'no-store' });
     if (!r.ok) throw walletError('the server could not reach Solana');
@@ -1122,8 +1163,10 @@ async function runServer(id, a, saved){
       if (hadPay !== !!state.pay) renderPay();
       if (j.status === 'done'){
         const secret = await openSealed(j, job.key, a);
-        job.done = true; idbDel(job.id);
-        onFound({ runId: id, address: j.address, secret });
+        job.done = true;
+        const backup = job.vault && job.paid ? vaultSave(job, j.address, secret, job.mode).catch(() => 'failed') : null;
+        idbDel(job.id);
+        onFound({ runId: id, address: j.address, secret, backup, wallet: backup && job.vault.wallet });
         return;
       }
       if (j.status === 'failed' || j.status === 'canceled') throw Object.assign(new Error(j.status), { code: j.error || j.status });
@@ -1455,7 +1498,7 @@ function mineKeySaved(address){
 function onFound(m){
   const elapsed = state.runInfo.engine === 'server' ? state.serverElapsed * 1000 : now() - state.t0;
   const res = { address: m.address, secret: new Uint8Array(m.secret), pl: state.runInfo.pl, sl: state.runInfo.sl,
-    mode: state.runInfo.mode, engine: state.runInfo.engine, tries: state.tries, elapsed, saved: false };
+    mode: state.runInfo.mode, engine: state.runInfo.engine, tries: state.tries, elapsed, saved: false, backup: m.backup, wallet: m.wallet };
   res.secret58 = b58(res.secret);
   state.results.unshift(res);
   mineAdd(res);
@@ -1486,8 +1529,9 @@ function renderResult(r){
       <div class="v masked" data-secret>${'•'.repeat(32)}</div>
       <div class="btns"><button class="sm" data-act="reveal">Show</button><button class="sm" data-act="copyKey">Copy</button></div>
     </div>
+    ${r.backup ? '<p class="vault" data-vault>Backing up the key to your wallet…</p>' : ''}
     <div class="foot">
-      <p>Anyone with this key controls the ${r.mode === 'token' ? 'mint' : 'wallet'}. Save it now; closing the tab erases it.</p>
+      <p data-keep>Anyone with this key controls the ${r.mode === 'token' ? 'mint' : 'wallet'}. Save it now; closing the tab erases it.</p>
       <button class="dl" data-act="download">Download keypair</button>
     </div>`;
   card.addEventListener('click', e => {
@@ -1505,6 +1549,14 @@ function renderResult(r){
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
       r.saved = true; mineKeySaved(r.address); b.textContent = 'Downloaded';
     }
+  });
+  if (r.backup) r.backup.then(out => {
+    const v = card.querySelector('[data-vault]'), who = shortAddr(r.wallet);
+    v.className = 'vault ' + (out === 'ok' ? 'ok' : 'warn');
+    v.innerHTML = out === 'ok' ? `Backed up to ${esc(who)}: connect that wallet on <a href="addresses" target="_blank">My addresses</a> to see this key again, on any device.`
+      : out === 'mismatch' ? `Not backed up: ${esc(who)} signed the backup message differently from before, so it could not open the key later. Save the key yourself.`
+      : 'Not backed up: the server did not take the copy. Save the key yourself.';
+    if (out === 'ok') card.querySelector('[data-keep]').textContent = `Anyone with this key controls the ${r.mode === 'token' ? 'mint' : 'wallet'}. Keep a copy of your own too.`;
   });
   $('results').prepend(card);
   if (state.found === r) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' });
