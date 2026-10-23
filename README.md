@@ -1,6 +1,6 @@
 # Plates
 
-[getplates.fun](https://getplates.fun): Solana vanity address generator (wallet or token mint) with three engines. The mascot is Plato, a license plate with a face.
+[getplates.fun](https://getplates.fun): Solana vanity wallet address generator with three engines. The mascot is Plato, a license plate with a face.
 
 | Engine | Where it runs | Who sees the private key | Best for |
 |---|---|---|---|

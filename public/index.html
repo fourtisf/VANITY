@@ -6,12 +6,12 @@
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0B0C15">
 <title>Solana vanity address generator | {{SITE_NAME}}</title>
-<meta name="description" content="Make a Solana wallet or token address that starts or ends with your word.{{^PAID}} The key is made on your own graphics card.{{/PAID}}">
+<meta name="description" content="Make a Solana wallet address that starts or ends with your word.{{^PAID}} The key is made on your own graphics card.{{/PAID}}">
 <link rel="canonical" href="{{ORIGIN}}/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{{SITE_NAME}}">
 <meta property="og:title" content="Solana vanity address generator">
-<meta property="og:description" content="Make a Solana wallet or token address that starts or ends with your word.{{^PAID}} The key is made on your own graphics card.{{/PAID}}">
+<meta property="og:description" content="Make a Solana wallet address that starts or ends with your word.{{^PAID}} The key is made on your own graphics card.{{/PAID}}">
 <meta property="og:url" content="{{ORIGIN}}/">
 <meta property="og:image" content="{{ORIGIN}}/og.png">
 <meta property="og:image:width" content="1200">
@@ -92,14 +92,8 @@ h1{margin:18px auto 14px;font:700 clamp(40px,7vw,76px)/.98 var(--display);letter
   box-shadow:0 0 0 6px rgba(91,69,201,.06),0 40px 100px -40px rgba(91,69,201,.75),inset 0 1px 0 rgba(255,255,255,.06)}
 .card::after{content:"";position:absolute;left:12%;right:12%;top:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(196,180,255,.9),transparent)}
 
-.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:7px;border-radius:22px;background:var(--well);border:1px solid var(--line)}
-.tab{display:flex;align-items:center;justify-content:center;gap:10px;height:58px;border-radius:16px;border:1.5px solid transparent;background:none;color:var(--text);font:600 19px var(--display);white-space:nowrap;transition:background .2s var(--ease),color .2s,border-color .2s}
-.tab:hover:not(:disabled){background:rgba(255,255,255,.03)}
-.tab[aria-selected="true"]{color:var(--teal);background:linear-gradient(180deg,rgba(59,227,195,.12),rgba(59,227,195,.05));border-color:rgba(59,227,195,.7);box-shadow:0 0 30px -10px rgba(59,227,195,.7),inset 0 1px 0 rgba(255,255,255,.06)}
-.tab .ic{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:9px;background:rgba(255,255,255,.06)}
-.tab[aria-selected="true"] .ic{background:rgba(59,227,195,.16)}
 
-.fields{display:grid;grid-template-columns:1.25fr auto 1fr;align-items:end;gap:14px;margin-top:26px}
+.fields{display:grid;grid-template-columns:1.25fr auto 1fr;align-items:end;gap:14px;margin-top:10px}
 .field span{display:block;font:600 17px var(--display);color:var(--muted);margin:0 0 10px 4px}
 .field input{width:100%;height:88px;padding:0 24px;border-radius:20px;background:var(--well);border:1.5px solid var(--line);color:var(--text);
   font:800 36px var(--mono);letter-spacing:.01em;transition:border-color .2s,box-shadow .2s,background .2s;caret-color:var(--teal)}
@@ -331,7 +325,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
 .fine a{color:var(--muted)}
 .fine{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;margin-top:36px;padding-top:22px;border-top:1px solid var(--line);color:var(--dim);font-size:14px}
 
-/* ---------- premium layer: X, token address, eyebrows, rims ---------- */
+/* ---------- premium layer: X, token CA, eyebrows, rims ---------- */
 body{background:radial-gradient(900px 520px at 88% 6%,rgba(59,227,195,.07),transparent 62%),radial-gradient(800px 600px at 6% 40%,rgba(91,69,201,.08),transparent 60%),var(--bg)}
 .bgfx{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E")}
 h1{max-width:none}
@@ -385,9 +379,6 @@ h1 .accent{display:block;background:linear-gradient(92deg,#7DF5DD 0%,#B9A9FF 55%
   .stage{padding-top:30px}
   .bot{width:150px;height:102px;margin-bottom:-30px}
   .card{padding:26px 16px 20px;border-radius:26px}
-  .tabs{border-radius:18px;padding:5px}
-  .tab{height:52px;font-size:16.5px;gap:8px;border-radius:14px}
-  .tab .ic{width:22px;height:22px}
   .fields{grid-template-columns:1fr;gap:12px}
   .gapdots{display:none}
   .hint{flex-direction:column;gap:2px}
@@ -447,7 +438,7 @@ h1 .accent{display:block;background:linear-gradient(92deg,#7DF5DD 0%,#B9A9FF 55%
 <section class="hero">
   <span class="kick"><i></i>Solana vanity addresses</span>
   <h1>Put your word <span class="accent">in your address.</span></h1>
-  <p>A Solana wallet or token address that starts or ends the way you want. {{#PAID}}We find it for you and seal the key so only your browser can open it.{{/PAID}}{{^PAID}}Your own graphics card finds it, and the key never leaves your device.{{/PAID}}</p>
+  <p>A Solana wallet address that starts or ends the way you want. {{#PAID}}We find it for you and seal the key so only your browser can open it.{{/PAID}}{{^PAID}}Your own graphics card finds it, and the key never leaves your device.{{/PAID}}</p>
   <div class="tokenbar">
     <span class="ca"><em>CA</em>{{#CA}}<code>{{CA}}</code><button type="button" class="cacopy" data-copy="{{CA}}">Copy</button>{{/CA}}{{^CA}}<code class="soon"><i></i>Coming soon</code>{{/CA}}</span>
     {{#X}}<a class="xfollow" href="{{X_URL}}" target="_blank" rel="noopener"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg><span>Follow {{X_HANDLE}}</span></a>{{/X}}
@@ -476,16 +467,6 @@ h1 .accent{display:block;background:linear-gradient(92deg,#7DF5DD 0%,#B9A9FF 55%
   </svg>
 
   <div class="card" id="card">
-    <div class="tabs" role="tablist" aria-label="Address type">
-      <button class="tab" role="tab" aria-selected="false" data-mode="token">
-        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M9.5 12h5M12 9.5v5"/></svg></span>
-        Token address
-      </button>
-      <button class="tab" role="tab" aria-selected="true" data-mode="wallet">
-        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3.5"/><path d="M16 13.5h2"/><path d="M6 7l9-3 1.5 3"/></svg></span>
-        Wallet
-      </button>
-    </div>
 
     <div class="fields">
       <label class="field"><span>Starts with</span>
@@ -575,20 +556,20 @@ h1 .accent{display:block;background:linear-gradient(92deg,#7DF5DD 0%,#B9A9FF 55%
 
 <section class="sec" id="what">
   <span class="eyebrow">What you get</span>
-  <h2>Two kinds of addresses</h2>
-  <p class="lead">Your word in a wallet people send to, or in the token address people paste into every chart.</p>
+  <h2>An address people remember</h2>
+  <p class="lead">Your word in the wallet people send to: for your brand, your project treasury, or yourself. Import it into Phantom, Solflare or Bitget in seconds.</p>
   <div class="duo">
     <article class="feat">
-      <span class="badge"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3.5"/><path d="M16 13.5h2"/><path d="M6 7l9-3 1.5 3"/></svg></span>
-      <h3>Wallet</h3>
-      <p>A wallet that's recognizable at a glance, for your brand, your project treasury, or yourself. Import it into Phantom or Solflare in seconds.</p>
+      <span class="badge"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M5 12l5-5M5 12l5 5"/></svg></span>
+      <h3>Starts with your word</h3>
+      <p>The first letters everyone sees when they copy it or look it up. Short, uppercase starts are the quickest.</p>
       <span class="chipaddr"><b>PUMP</b>7xQm2hK9vRt3pWd8nYc4eLs6uB1jZgF5</span>
     </article>
     <article class="feat alt">
-      <span class="badge"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M9.5 12h5M12 9.5v5"/></svg></span>
-      <h3>Token address</h3>
-      <p>A mint address that ends the way launchpad tokens do, or carries your ticker. Use the keypair as the mint when you create the token.</p>
-      <span class="chipaddr"><b>Moon</b>4tBx8qRk2NdV7sLh9WcF3mYz6aE5j<b>pump</b></span>
+      <span class="badge"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M19 12l-5-5M19 12l-5 5"/></svg></span>
+      <h3>Ends with your word</h3>
+      <p>The ending people check before they send. Pair it with a start for an address that matches on both sides.</p>
+      <span class="chipaddr">4tBx8qRk2NdV7sLh9WcF3mYz6aE5jHq<b>moon</b></span>
     </article>
   </div>
 </section>
@@ -642,9 +623,8 @@ h1 .accent{display:block;background:linear-gradient(92deg,#7DF5DD 0%,#B9A9FF 55%
   <span class="eyebrow">FAQ</span>
   <h2>Questions</h2>
   <div class="faq">
-    <details><summary>How do I use the key?</summary><p>In Phantom or Solflare, choose Add wallet, then Import private key, and paste it. For the Solana CLI, use the downloaded keypair file. For a token, use the keypair as the mint when you create the token.</p></details>
+    <details><summary>How do I use the key?</summary><p>In Phantom or Solflare, choose Add wallet, then Import private key, and paste it. For the Solana CLI, use the downloaded keypair file.</p></details>
     <details><summary>Why do some words take so much longer?</summary><p>Each character adds about 58 times more work, or 29 times with any capitalization. Solana addresses also almost always start with 2–9 or A–H, so other first characters are 25 to 60 times rarer again. Short words and uppercase starts are fastest.</p></details>
-    <details><summary>Why does Token address end in pump?</summary><p>Many launchpads give token addresses a recognizable ending such as pump. The Token address tab fills that ending in and matches it exactly, so your mint looks native to the launchpad. You can change it.</p></details>
     <details><summary>What does it cost?</summary><p id="faqCost">{{#PAID}}Each address is paid in SOL from your own wallet before the search starts, and the price is shown before you pay.{{/PAID}}{{^PAID}}Searching on your own device is free. Fast mode uses <span class="srv">our cloud GPU</span> for longer words.{{/PAID}}</p></details>
     <details><summary>Can someone else get my key from the address?</summary><p>No. The address comes from the key in one direction only, so a nice-looking address gives nobody a shortcut to your key.</p></details>
   </div>
@@ -668,7 +648,7 @@ h1 .accent{display:block;background:linear-gradient(92deg,#7DF5DD 0%,#B9A9FF 55%
       <span class="logo" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 100 100"><rect x="6" y="14" width="88" height="72" rx="20" fill="#3BE3C3" stroke="#0B0C15" stroke-width="5"/><ellipse cx="36" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="39" cy="49" r="5.5" fill="#0B0C15"/><ellipse cx="64" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="67" cy="49" r="5.5" fill="#0B0C15"/><path d="M42 66 Q50 74 58 66" fill="none" stroke="#0B0C15" stroke-width="4.5" stroke-linecap="round"/></svg></span>
       <p class="about">Vanity addresses for Solana, {{#PAID}}made for you and sealed to your browser.{{/PAID}}{{^PAID}}ground on your own graphics card.{{/PAID}}</p>
     </div>
-    <div><h4>Make</h4><a href="#make" data-goto="wallet">Wallet address</a><a href="#make" data-goto="token">Token address</a><a href="addresses" target="_blank">My addresses</a></div>
+    <div><h4>Make</h4><a href="#make">Make an address</a><a href="addresses" target="_blank">My addresses</a></div>
     <div><h4>Learn</h4><a href="#how">How it works</a><a href="#times">How long it takes</a><a href="#faq">Questions</a></div>
     <div><h4>Trust</h4><a href="#safe">Is it safe?</a><a href="#safe">Where keys are made</a>{{SOURCE_LINK}}</div>
     <div><h4>Community</h4>{{#X}}<a href="{{X_URL}}" target="_blank" rel="noopener" class="fx"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>{{X_HANDLE}}</a>{{/X}}<span class="fca">CA: {{#CA}}<code>{{CA}}</code>{{/CA}}{{^CA}}Coming soon{{/CA}}</span></div>
@@ -1235,7 +1215,7 @@ async function resumeSavedJob(){
   saved.slice(1).forEach(j => idbDel(j.id));
   if (Date.now() - job.created > 8 * 86400 * 1000){ idbDel(job.id); return; }   // paid results wait a week on the server
   $('pre').value = job.prefix; $('suf').value = job.suffix;
-  setMode(job.mode || 'wallet', true); setCase(job.anyCase); setFast(true);
+  setMode('wallet', true); setCase(job.anyCase); setFast(true);
   start(job);
 }
 
@@ -1297,12 +1277,7 @@ const cleanVal = id => $(id).value.replace(/\s+/g, '');
 const START_IDEAS = ['DEGEN', '8888', 'HODL', 'GOAT', 'CHAD', 'BOSS', 'CASH', '777', 'APE', 'ACE', 'DEV', 'GEM', 'GM', '69', 'AI', 'EZ', 'GG', 'A', 'G', '8'];
 const END_IDEAS = ['pump', 'moon', 'bonk', 'pepe', 'king', 'goat', '777', '999', 'sol', 'wif', 'ape', 'fun', 'gm', 'ai', '69', 'x', 'z'];
 const BOTH_IDEAS = [['69', '69'], ['GM', 'gm'], ['AI', 'ai'], ['APE', 'gm']];
-// Token addresses match exactly, so their endings are launchpad and meme words in lowercase; with pump at the end,
-// only a one-character start stays quick, and ideaWords picks those.
-const TOKEN_START_IDEAS = ['DEGEN', 'CHAD', 'HODL', 'GOAT', 'BOSS', 'CASH', 'APE', 'DEV', 'GEM', 'GM', '69', 'EZ', 'GG', 'A', 'G', '8', 'D', 'B', '9', 'C', 'H'];
-const TOKEN_END_IDEAS = ['pump', 'bonk', 'moon', 'meme', 'pepe', 'goat', 'king', 'wif', 'cat', 'dog', 'ape', 'fun', '777', 'gm', 'ai', '69'];
-const TOKEN_BOTH_IDEAS = [['GM', 'gm'], ['69', '69'], ['A', '777'], ['G', 'ape'], ['A', 'pump']];
-const ideaList = side => (state.mode === 'token' ? { pre: TOKEN_START_IDEAS, suf: TOKEN_END_IDEAS, both: TOKEN_BOTH_IDEAS } : { pre: START_IDEAS, suf: END_IDEAS, both: BOTH_IDEAS })[side];
+const ideaList = side => ({ pre: START_IDEAS, suf: END_IDEAS, both: BOTH_IDEAS })[side];
 $('ideas').innerHTML = '<span class="ttl">Look rare, found fast</span>' + [['Start', 'pre'], ['End', 'suf'], ['Both ends', 'both']].map(([label, side]) =>
   `<div class="irow" data-side="${side}"><span class="lbl">${label}</span><span class="chips"></span></div>`).join('');
 // Up to five ideas for one side, given what is typed on the other: those found within 10 minutes here (longest
@@ -1388,12 +1363,11 @@ function update(){
       }
     }
   }
-  // Ideas for both tabs, from the tab's own lists. A Start or End idea fills only its own side, so the two
-  // combine; its time is for the address a click would give, in amber when that is over 10 minutes. The chosen
-  // ones are highlighted, and a second click clears them.
+  // A Start or End idea fills only its own side, so the two combine; its time is for the address a click would
+  // give, in amber when that is over 10 minutes. The chosen ones are highlighted, and a second click clears them.
   let ideas = 0;
   if (!state.running) $('ideas').querySelectorAll('.irow').forEach(row => {
-    const words = ideaWords(row.dataset.side, a, rate), key = state.mode + ':' + words.join('|');
+    const words = ideaWords(row.dataset.side, a, rate), key = words.join('|');
     if (row.dataset.key === key) return;   // rebuilt only when the ideas change, so a click in progress is not lost
     row.dataset.key = key;
     row.querySelector('.chips').innerHTML = words.map(([p, s]) =>
@@ -1627,7 +1601,7 @@ async function copy(text, btn){
 }
 
 /* ---------- events ---------- */
-document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => copy(b.dataset.copy, b)));   // the token address
+document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => copy(b.dataset.copy, b)));   // the token CA
 function clearFound(){ state.found = null; $('card').classList.remove('found'); }
 function setCase(any){
   state.anyCase = !!any;
@@ -1649,7 +1623,6 @@ function setMode(mode, keepFields){
   $(id).addEventListener('keydown', e => { if (e.key === 'Enter') start(); });
 });
 document.querySelectorAll('[data-case]').forEach(b => b.addEventListener('click', () => setCase(b.dataset.case === 'any')));
-document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
 $('fast').addEventListener('click', () => setFast(!state.fast));
 const useWord = e => {
   const b = e.target.closest('button[data-pre]'); if (!b || state.running) return;
@@ -1690,7 +1663,6 @@ function ctaGo(){
 }
 $('ctaGo').addEventListener('click', ctaGo);
 ['ctaPre', 'ctaSuf'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') ctaGo(); }));
-document.querySelectorAll('[data-goto]').forEach(a => a.addEventListener('click', () => { if (!state.running) setMode(a.dataset.goto); }));
 (() => { const fx = $('bgfx'), r = crypto.getRandomValues(new Uint16Array(120));
   for (let i = 0; i < 40; i++){ const d = document.createElement('i'); d.style.left = (r[i*3] % 1000) / 10 + '%'; d.style.top = (r[i*3+1] % 1000) / 10 + '%'; d.style.opacity = (0.12 + (r[i*3+2] % 30) / 100).toFixed(2); fx.appendChild(d); } })();
 window.addEventListener('beforeunload', e => { if (state.results.some(r => !r.saved)){ e.preventDefault(); e.returnValue = ''; } });
@@ -1701,7 +1673,7 @@ window.addEventListener('beforeunload', e => { if (state.results.some(r => !r.sa
   try {
     const f = JSON.parse(decodeURIComponent(m[1]));
     $('pre').value = String(f.p || '').slice(0, 10); $('suf').value = String(f.s || '').slice(0, 10);
-    setMode(f.m === 'token' ? 'token' : 'wallet', true); setCase(f.c !== false); state.wantFast = true;
+    setMode('wallet', true); setCase(f.c !== false); state.wantFast = true;
     history.replaceState(null, '', location.pathname + location.search);
     setTimeout(() => $('make').scrollIntoView({ block: 'start' }), 300);
   } catch {}

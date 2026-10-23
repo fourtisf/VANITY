@@ -4,7 +4,7 @@ This repo is finished and tested. The job is to deploy it, not to rebuild it. Do
 
 ## What it is
 
-A website that creates Solana wallet or token addresses starting or ending with a chosen word.
+A website that creates Solana wallet addresses starting or ending with a chosen word.
 
 - **On-device (default):** the visitor's own GPU (WebGPU) or CPU (Web Workers) grinds keys in the browser. Nothing is sent to the server.
 - **Fast mode (optional):** the visitor's browser sends the pattern plus an RSA public key. This server grinds on its GPU, seals the key (RSA-OAEP 3072 + AES-256-GCM), and the browser opens and re-verifies it.
