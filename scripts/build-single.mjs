@@ -24,7 +24,8 @@ html = html.replace(/\s*<!-- PNG icons:.*?-->\s*<link rel="icon"[^>]*>\s*<link r
 if (!html.includes('data:image/png;base64')) throw new Error('icon links not found');
 html = renderPage(html, siteConfig({}))
   .replace(/\s*<div><h4>Legal<\/h4>.*?<\/div>/, '')
-  .replace(/\s*<p class="small legal">.*?<\/p>/, '');
+  .replace(/\s*<p class="small legal">.*?<\/p>/, '')
+  .replace(/\s*<a href="addresses\.html">My addresses<\/a>/g, '');   // that page needs the server too
 const wgsl = await read('engine/vanity.wgsl');
 html = html.replace('<script type="text/plain" id="workerSrc">', () => `<script type="text/plain" id="wgsl">\n${wgsl}\n</script>\n<script type="text/plain" id="workerSrc">`);
 await mkdir(path.join(root, 'dist'), { recursive: true });

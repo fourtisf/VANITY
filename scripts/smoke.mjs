@@ -12,7 +12,7 @@ if (status.engine !== 'gpu') console.warn('note: server is running on CPU. On a 
 
 const page = await fetch(base + '/').then(r => r.text());
 if (!page.includes('id="pre"')) fail('website did not load');
-for (const f of ['engine/pattern.js', 'engine/gpu-engine.js', 'engine/vanity.wgsl', 'legal.html', 'robots.txt', 'og.png', 'icon-192.png', 'apple-touch-icon.png', 'favicon.ico', 'fonts/nunito.woff2', 'wallets/phantom.svg']) {
+for (const f of ['engine/pattern.js', 'engine/gpu-engine.js', 'engine/vanity.wgsl', 'legal.html', 'addresses.html', 'robots.txt', 'og.png', 'icon-192.png', 'apple-touch-icon.png', 'favicon.ico', 'fonts/nunito.woff2', 'wallets/phantom.svg']) {
   const r = await fetch(base + '/' + f); if (!r.ok) fail(f + ' not served (' + r.status + ')');
 }
 if (page.includes('{{')) fail('page placeholders were not filled in');

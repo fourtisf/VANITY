@@ -17,6 +17,7 @@ A website that creates Solana wallet or token addresses starting or ending with 
 | `site.js` | Site name, contact and links from the environment, filled into `{{NAME}}` placeholders in the pages |
 | `public/index.html` | The whole website (HTML, CSS, app JS), including Connect wallet (header), Fast mode payment and Add SOL |
 | `public/legal.html` | Terms, privacy and refund policy templates |
+| `public/addresses.html` | My addresses: every address made in this browser (from localStorage; addresses only, never keys), with balances on request through `/api/balances` |
 | `engine/vanity.wgsl` | GPU shader: SHA-512, ed25519, base58 checks. Shared by browser and server |
 | `engine/gpu-engine.js` | WebGPU host code. Shared by browser and server |
 | `engine/pattern.js` | Pattern parsing and odds. Shared by browser and server |

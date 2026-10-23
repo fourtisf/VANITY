@@ -422,6 +422,17 @@ const server = http.createServer(async (req, res) => {
       try { return send(res, 200, { blockhash: await latestBlockhash() }); }
       catch (e) { log('blockhash failed:', e.message); return send(res, 502, { error: 'rpc' }); }
     }
+    // My addresses: SOL balances of up to 100 addresses, asked only when the visitor presses Show balances.
+    if (p === '/api/balances' && req.method === 'POST') {
+      let body;
+      try { body = await readJson(req, 8192); } catch { return send(res, 400, { error: 'bad-request' }); }
+      const list = Array.isArray(body.addresses) ? [...new Set(body.addresses.map(String))] : [];
+      if (!list.length || list.length > 100 || list.some(a => (b58dec(a) || []).length !== 32)) return send(res, 400, { error: 'bad-addresses' });
+      try {
+        const r = await rpc('getMultipleAccounts', [list, { commitment: 'confirmed', encoding: 'base64', dataSlice: { offset: 0, length: 0 } }]);
+        return send(res, 200, { balances: Object.fromEntries(list.map((a, i) => [a, (r.value[i] && r.value[i].lamports) || 0])) });
+      } catch (e) { log('balances failed:', e.message); return send(res, 502, { error: 'rpc' }); }
+    }
     if (p === '/api/jobs' && req.method === 'POST') return createJob(req, res);
     const m = p.match(/^\/api\/jobs\/([0-9a-f]{32})(\/paid)?$/);
     if (m) {

@@ -26,13 +26,14 @@ const check = (ok, what) => { if (!ok) fail(what); };
 
 /* ---- fake RPC ---- */
 const PAY_TO = key(), BLOCKHASH = key();
-const byAddr = new Map(), byId = new Map();
+const byAddr = new Map(), byId = new Map(), lamportsOf = new Map();
 const rpc = http.createServer((req, res) => {
   let body = ''; req.on('data', c => body += c); req.on('end', () => {
     const { id, method, params } = JSON.parse(body);
     const result = method === 'getLatestBlockhash' ? { context: { slot: 1 }, value: { blockhash: BLOCKHASH, lastValidBlockHeight: 100 } }
       : method === 'getSignaturesForAddress' ? (byAddr.get(params[0]) || [])
-      : method === 'getTransaction' ? (byId.get(params[0]) || null) : null;
+      : method === 'getTransaction' ? (byId.get(params[0]) || null)
+      : method === 'getMultipleAccounts' ? { context: { slot: 1 }, value: params[0].map(a => lamportsOf.has(a) ? { lamports: lamportsOf.get(a), owner: '11111111111111111111111111111111', data: ['', 'base64'], executable: false } : null) } : null;
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id, result }));
   });
 });
@@ -178,6 +179,23 @@ const fund = sentAll[1];
 check(fund && fund.from === payer.publicKey.toBase58() && fund.to === address.trim() && fund.lamports === 5e7 && fund.extra.length === 0, 'Add SOL transfer: ' + JSON.stringify(fund));
 await page.locator('.res').screenshot({ path: path.join(shots, 'result-add-sol.png') });
 console.log('Add SOL: refused until the key is saved, then a plain transfer to the new address: ok');
+
+/* ---- My addresses: the new address is listed in this browser, with its key marked saved and its balance on request ---- */
+check(await page.isVisible('.res .sub a[href="addresses.html"]'), 'result does not link to My addresses');
+lamportsOf.set(address.trim(), 5e7);
+const mine = page;   // the key was copied, so leaving the result page asks nothing
+await mine.goto(base + '/addresses.html', { waitUntil: 'load' });
+const item = mine.locator(`.item[data-addr="${address.trim()}"]`);
+await item.waitFor({ timeout: 5000 }).catch(() => fail('new address not in My addresses'));
+check(/Wallet/.test(await item.textContent()) && /Key saved/.test(await item.textContent()), 'My addresses tags: ' + await item.textContent());
+await mine.click('#balBtn');
+await mine.waitForFunction(() => /0\.05 SOL in total/.test(document.querySelector('#total').textContent), null, { timeout: 10000 }).catch(async () => fail('balances: ' + await mine.textContent('#bar')));
+check(/0\.05 SOL/.test(await item.locator('.bal').textContent()), 'address balance not shown');
+await mine.screenshot({ path: path.join(shots, 'my-addresses.png'), fullPage: true });
+mine.once('dialog', d => d.accept());
+await item.locator('[data-act="del"]').click();
+await mine.waitForSelector('#empty:not([hidden])', { timeout: 5000 }).catch(() => fail('Remove did not empty the list'));
+console.log('My addresses: listed with key saved, balance on request, remove: ok');
 
 /* ---- phone without a wallet: reopen the page inside the wallet app ---- */
 const phone = await browser.newContext({ ...devices['iPhone 13'] });

@@ -22,6 +22,7 @@ engine/pattern.js      Pattern parsing and odds, shared by browser and server
 engine/cpu-worker.mjs  Server CPU fallback (worker_threads; libsodium when installed, else WebCrypto)
 public/index.html      The website
 public/legal.html      Terms, privacy and refund policy (templates: have them reviewed)
+public/addresses.html  My addresses: addresses made in this browser (no keys), balances on request
 public/fonts/          Self-hosted fonts (SIL Open Font License, see LICENSE.txt there)
 public/wallets/        Wallet logos for the Connect wallet list
 public/og.png          Link preview image

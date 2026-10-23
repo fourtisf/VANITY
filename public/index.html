@@ -204,6 +204,7 @@ h1{margin:18px auto 14px;font:700 clamp(40px,7vw,76px)/.98 var(--display);letter
 .res h2{display:flex;align-items:center;gap:10px;margin:0;font:700 25px var(--display)}
 .res h2 i{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--teal);color:var(--teal-ink)}
 .res .sub{margin:4px 0 14px;color:var(--muted);font-size:15.5px}
+.res .sub a{color:var(--teal)}
 .kv{display:grid;grid-template-columns:1fr auto;gap:8px 10px;align-items:center;padding:15px 0;border-top:1px solid var(--line)}
 .kv .k{grid-column:1/-1;font:600 13px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .kv .v{font:500 15.5px/1.5 var(--mono);word-break:break-all;min-width:0}
@@ -332,6 +333,9 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
 .fine a{color:var(--muted)}
 .fine{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;margin-top:36px;padding-top:22px;border-top:1px solid var(--line);color:var(--dim);font-size:14px}
 
+/* Narrower desktops keep the main links; the others are in the footer. */
+@media (max-width:1120px){ .nav a[href="#times"],.nav a[href="#faq"]{display:none} }
+@media (max-width:960px){ .nav a[href="#how"]{display:none} }
 @media (max-width:860px){
   .nav{display:none}
   .steps{grid-template-columns:1fr 1fr}
@@ -386,6 +390,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <a href="#times">How long</a>
       <a href="#safe">Is it safe?</a>
       <a href="#faq">Questions</a>
+      <a href="addresses.html">My addresses</a>
     </nav>
     <span class="sp"></span>
     <span class="pill">
@@ -613,7 +618,7 @@ footer{max-width:1180px;margin:110px auto 0;padding:44px 20px 40px;border-top:1p
       <span class="logo" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 100 100"><rect x="6" y="14" width="88" height="72" rx="20" fill="#3BE3C3" stroke="#0B0C15" stroke-width="5"/><ellipse cx="36" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="39" cy="49" r="5.5" fill="#0B0C15"/><ellipse cx="64" cy="46" rx="10" ry="12" fill="#fff" stroke="#0B0C15" stroke-width="4"/><circle cx="67" cy="49" r="5.5" fill="#0B0C15"/><path d="M42 66 Q50 74 58 66" fill="none" stroke="#0B0C15" stroke-width="4.5" stroke-linecap="round"/></svg></span>
       <p class="about">Vanity addresses for Solana, ground on your own graphics card.</p>
     </div>
-    <div><h4>Make</h4><a href="#make" data-goto="wallet">Wallet address</a><a href="#make" data-goto="token">Token address</a></div>
+    <div><h4>Make</h4><a href="#make" data-goto="wallet">Wallet address</a><a href="#make" data-goto="token">Token address</a><a href="addresses.html">My addresses</a></div>
     <div><h4>Learn</h4><a href="#how">How it works</a><a href="#times">How long it takes</a><a href="#faq">Questions</a></div>
     <div><h4>Trust</h4><a href="#safe">Is it safe?</a><a href="#safe">Where keys are made</a>{{SOURCE_LINK}}</div>
     <div><h4>Legal</h4><a href="legal.html#terms">Terms</a><a href="legal.html#privacy">Privacy</a><a href="legal.html#refunds">Refunds</a></div>
@@ -1364,12 +1369,25 @@ function tick(t){
   }
   requestAnimationFrame(tick);
 }
+/* ---------- My addresses: every address made here, kept in this browser (addresses only, never keys) ---------- */
+const MINE = 'plates.addresses';
+function mineLoad(){ try { const v = JSON.parse(localStorage.getItem(MINE) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } }
+function mineSave(list){ try { localStorage.setItem(MINE, JSON.stringify(list.slice(0, 500))); } catch {} }
+function mineAdd(r){
+  mineSave([{ address: r.address, mode: r.mode, pl: r.pl, sl: r.sl, engine: r.engine, at: Date.now(), keySaved: false },
+    ...mineLoad().filter(x => x.address !== r.address)]);
+}
+function mineKeySaved(address){
+  const list = mineLoad(), x = list.find(e => e.address === address);
+  if (x && !x.keySaved){ x.keySaved = true; mineSave(list); }
+}
 function onFound(m){
   const elapsed = state.runInfo.engine === 'server' ? state.serverElapsed * 1000 : now() - state.t0;
   const res = { address: m.address, secret: new Uint8Array(m.secret), pl: state.runInfo.pl, sl: state.runInfo.sl,
     mode: state.runInfo.mode, engine: state.runInfo.engine, tries: state.tries, elapsed, saved: false };
   res.secret58 = b58(res.secret);
   state.results.unshift(res);
+  mineAdd(res);
   if (state.firstInRun){
     state.firstInRun = false; state.found = res;
     stop();
@@ -1390,7 +1408,7 @@ function renderResult(r){
   const canFund = r.mode !== 'token' && state.server.status === 'ready';
   card.innerHTML = `
     <h2>${title}</h2>
-    <p class="sub">Found after ${fmtBig(r.tries)} keys in ${fmtElapsed(r.elapsed)} on ${WHERE[r.engine]}</p>
+    <p class="sub">Found after ${fmtBig(r.tries)} keys in ${fmtElapsed(r.elapsed)} on ${WHERE[r.engine]}.${location.protocol === 'file:' ? '' : ' Added to <a href="addresses.html" data-mine>My addresses</a>.'}</p>
     <div class="kv"><span class="k">${label}</span>
       <div class="v">${hl(r.address, r.pl, r.sl)}</div>
       <div class="btns"><button class="sm" data-act="copyAddr">Copy</button></div>
@@ -1411,7 +1429,7 @@ function renderResult(r){
     const b = e.target.closest('button'); if (!b) return;
     const act = b.dataset.act;
     if (act === 'copyAddr') copy(r.address, b);
-    if (act === 'copyKey'){ copy(r.secret58, b); r.saved = true; }
+    if (act === 'copyKey'){ copy(r.secret58, b); r.saved = true; mineKeySaved(r.address); }
     if (act === 'reveal'){
       const v = card.querySelector('[data-secret]'); const shown = !v.classList.contains('masked');
       v.classList.toggle('masked', shown); v.textContent = shown ? '•'.repeat(32) : r.secret58; b.textContent = shown ? 'Show' : 'Hide';
@@ -1421,7 +1439,7 @@ function renderResult(r){
       const blob = new Blob([JSON.stringify(Array.from(r.secret))], { type: 'application/json' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = r.address + '.json';
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-      r.saved = true; b.textContent = 'Downloaded';
+      r.saved = true; mineKeySaved(r.address); b.textContent = 'Downloaded';
     }
   });
   $('results').prepend(card);
