@@ -380,6 +380,15 @@ check(await fp.$eval('#ideas button[data-pre="CHAD"]', b => b.classList.contains
 await fp.click('#ideas button[data-pre="CHAD"]');
 check(await fp.inputValue('#pre') === '' && await fp.inputValue('#suf') === ends[0], 'second click did not clear the start');
 await fp.fill('#suf', '');
+// The Token address tab has its own ideas: launchpad endings in lowercase, and starts short enough to stay quick.
+await fp.click('.tab[data-mode="token"]');
+await fp.waitForSelector('#ideas .irow[data-side="pre"] button:not([hidden])', { timeout: 5000 }).catch(() => fail('no token start ideas'));
+const tokenStarts = await fp.$$eval('#ideas .irow[data-side="pre"] button:not([hidden])', bs => bs.map(b => b.dataset.pre));
+check(tokenStarts.length && tokenStarts.every(w => w.length === 1), 'token start ideas with an exact 4-letter end: ' + tokenStarts.join(', '));
+const tokenEnd = await fp.$eval('#ideas .irow[data-side="suf"] button:not([hidden]):not([data-suf="pump"])', b => b.dataset.suf).catch(async () => fail('no token ideas: ' + await fp.textContent('#ideas')));
+await fp.click(`#ideas button[data-side="suf"][data-suf="${tokenEnd}"]`);
+check(await fp.inputValue('#suf') === tokenEnd && await fp.inputValue('#pre') === '', 'token end idea not filled in');
+await fp.click('.tab[data-mode="wallet"]'); await fp.fill('#suf', '');
 await fp.waitForSelector('#fast:not([hidden])', { timeout: 30000 });
 await fp.click('#fast'); await fp.fill('#pre', 'A');
 await fp.waitForSelector('#go:not([disabled])', { timeout: 30000 });

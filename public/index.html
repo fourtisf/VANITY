@@ -1297,19 +1297,26 @@ const cleanVal = id => $(id).value.replace(/\s+/g, '');
 const START_IDEAS = ['DEGEN', '8888', 'HODL', 'GOAT', 'CHAD', 'BOSS', 'CASH', '777', 'APE', 'ACE', 'DEV', 'GEM', 'GM', '69', 'AI', 'EZ', 'GG', 'A', 'G', '8'];
 const END_IDEAS = ['pump', 'moon', 'bonk', 'pepe', 'king', 'goat', '777', '999', 'sol', 'wif', 'ape', 'fun', 'gm', 'ai', '69', 'x', 'z'];
 const BOTH_IDEAS = [['69', '69'], ['GM', 'gm'], ['AI', 'ai'], ['APE', 'gm']];
+// Token addresses match exactly, so their endings are launchpad and meme words in lowercase; with pump at the end,
+// only a one-character start stays quick, and ideaWords picks those.
+const TOKEN_START_IDEAS = ['DEGEN', 'CHAD', 'HODL', 'GOAT', 'BOSS', 'CASH', 'APE', 'DEV', 'GEM', 'GM', '69', 'EZ', 'GG', 'A', 'G', '8', 'D', 'B', '9', 'C', 'H'];
+const TOKEN_END_IDEAS = ['pump', 'bonk', 'moon', 'meme', 'pepe', 'goat', 'king', 'wif', 'cat', 'dog', 'ape', 'fun', '777', 'gm', 'ai', '69'];
+const TOKEN_BOTH_IDEAS = [['GM', 'gm'], ['69', '69'], ['A', '777'], ['G', 'ape'], ['A', 'pump']];
+const ideaList = side => (state.mode === 'token' ? { pre: TOKEN_START_IDEAS, suf: TOKEN_END_IDEAS, both: TOKEN_BOTH_IDEAS } : { pre: START_IDEAS, suf: END_IDEAS, both: BOTH_IDEAS })[side];
 $('ideas').innerHTML = '<span class="ttl">Look rare, found fast</span>' + [['Start', 'pre'], ['End', 'suf'], ['Both ends', 'both']].map(([label, side]) =>
   `<div class="irow" data-side="${side}"><span class="lbl">${label}</span><span class="chips"></span></div>`).join('');
 // Up to five ideas for one side, given what is typed on the other: those found within 10 minutes here (longest
 // first), then the quickest of the rest. The chosen one stays first so it can be clicked off.
 function ideaWords(side, a, rate){
-  if (side === 'both') return BOTH_IDEAS;
+  if (side === 'both') return ideaList('both');
   const cur = side === 'pre' ? a.preRaw : a.sufRaw;
-  const all = (side === 'pre' ? START_IDEAS : END_IDEAS).filter(w => w !== cur).map(w => {
+  const all = ideaList(side).filter(w => w !== cur).map(w => {
     const r = side === 'pre' ? VP.analyze(w, a.sufRaw, state.anyCase) : VP.analyze(a.preRaw, w, state.anyCase);
     return { w, t: r.error ? NaN : rate ? 1 / (r.p * rate) : 0 };
   }).filter(x => !isNaN(x.t));
-  const words = all.filter(x => x.t <= 600).concat(all.filter(x => x.t > 600).sort((x, y) => x.t - y.t)).map(x => x.w);
-  if ((side === 'pre' ? START_IDEAS : END_IDEAS).includes(cur)) words.unshift(cur);
+  // Past six hours a word is no longer "found fast", so it is left out.
+  const words = all.filter(x => x.t <= 600).concat(all.filter(x => x.t > 600 && x.t <= 6 * 3600).sort((x, y) => x.t - y.t)).map(x => x.w);
+  if (ideaList(side).includes(cur)) words.unshift(cur);
   return words.slice(0, 5).map(w => side === 'pre' ? [w, ''] : ['', w]);
 }
 // Shorter versions of the word that finish within 10 minutes at this rate: keep as many letters as possible,
@@ -1381,12 +1388,12 @@ function update(){
       }
     }
   }
-  // Ideas are for wallet addresses (a token's exact pump ending makes each one slow). A Start or End idea
-  // fills only its own side, so the two combine; its time is for the address a click would give, in amber
-  // when that is over 10 minutes. The chosen ones are highlighted, and a second click clears them.
+  // Ideas for both tabs, from the tab's own lists. A Start or End idea fills only its own side, so the two
+  // combine; its time is for the address a click would give, in amber when that is over 10 minutes. The chosen
+  // ones are highlighted, and a second click clears them.
   let ideas = 0;
-  if (state.mode === 'wallet' && !state.running) $('ideas').querySelectorAll('.irow').forEach(row => {
-    const words = ideaWords(row.dataset.side, a, rate), key = words.join('|');
+  if (!state.running) $('ideas').querySelectorAll('.irow').forEach(row => {
+    const words = ideaWords(row.dataset.side, a, rate), key = state.mode + ':' + words.join('|');
     if (row.dataset.key === key) return;   // rebuilt only when the ideas change, so a click in progress is not lost
     row.dataset.key = key;
     row.querySelector('.chips').innerHTML = words.map(([p, s]) =>
@@ -1396,7 +1403,7 @@ function update(){
     const side = b.dataset.side;
     const pre = side === 'suf' ? a.preRaw : b.dataset.pre, suf = side === 'pre' ? a.sufRaw : b.dataset.suf;
     const r = VP.analyze(pre, suf, state.anyCase), t = 1 / (r.p * rate);
-    const show = state.mode === 'wallet' && !state.running && !r.error;
+    const show = !state.running && !r.error;
     b.hidden = !show; ideas += show;
     b.classList.toggle('on', (side === 'suf' || a.preRaw === b.dataset.pre) && (side === 'pre' || a.sufRaw === b.dataset.suf));
     b.classList.toggle('slow', !!rate && t > 600);
