@@ -2,6 +2,8 @@
 // when the server sends them (and with the defaults by scripts/build-single.mjs).
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+const PLATES_CA = 'FQYq6mPLHYUGzT2gjb19xJShaVSZhSyxC58GnR9Npump';
+
 export function siteConfig(env = process.env) {
   const get = (k, d = '') => (env[k] === undefined || env[k] === '' ? d : String(env[k]).trim());
   const name = get('SITE_NAME', 'Plates');
@@ -13,9 +15,9 @@ export function siteConfig(env = process.env) {
     operator: get('OPERATOR_NAME', name),
     jurisdiction: get('JURISDICTION'),
     source: get('SOURCE_URL'),
-    // The project's X account (X_URL=off hides it) and the token's contract address, shown as "Coming soon" until set.
+    // The project's X account and the $PLATES contract address; "off" hides the X link, or shows the CA as "Coming soon".
     x: /^off$/i.test(get('X_URL', 'https://x.com/platesfun')) ? '' : get('X_URL', 'https://x.com/platesfun'),
-    ca: get('TOKEN_CA'),
+    ca: /^off$/i.test(get('TOKEN_CA', PLATES_CA)) ? '' : get('TOKEN_CA', PLATES_CA),
     // With payments on, every search is paid and runs on the server, unless DEVICE_SEARCH=on keeps the free
     // search on the visitor's own device.
     paidOnly: !!get('PAY_TO') && get('DEVICE_SEARCH').toLowerCase() !== 'on',
