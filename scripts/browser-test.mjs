@@ -147,7 +147,7 @@ check(await page.textContent('.brand') === 'Test Vanity', 'brand missing from th
 check(await page.getAttribute('meta[property="og:image"]', 'content') === 'https://vanity.example/og.png', 'og:image not absolute');
 check(await page.getAttribute('[data-contact]', 'href') === 'mailto:help@vanity.example', 'contact link missing');
 check(await page.evaluate(() => document.fonts.check('700 20px Fredoka')), 'self-hosted font not loaded');
-check(await page.getAttribute('.xbtn', 'href') === 'https://x.com/platesfun' && await page.textContent('.tokenbar code') === 'FQYq6mPLHYUGzT2gjb19xJShaVSZhSyxC58GnR9Npump' && /Follow @platesfun/.test(await page.textContent('.tokenbar')), 'X link or CA missing: ' + await page.textContent('.tokenbar'));
+check(await page.getAttribute('.xbtn', 'href') === 'https://x.com/platesfun' && await page.textContent('.tokenbar code') === '2nbsuDZocbrBkCQFC6wDFqG2q38Jd9GYo93EJBYdpump' && /Follow @platesfun/.test(await page.textContent('.tokenbar')), 'X link or CA missing: ' + await page.textContent('.tokenbar'));
 console.log('site details, contact, preview tags, fonts, X link and CA: ok');
 
 /* ---- header: the visitor connects their own wallet; nothing from the site owner is needed ---- */

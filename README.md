@@ -126,7 +126,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `JURISDICTION` | empty | Country whose laws govern the terms, for example `Indonesia` |
 | `SOURCE_URL` | empty | Link to the public source code, shown in the footer when set |
 | `X_URL` | `https://x.com/platesfun` | The project's X account, linked in the header, under the headline and in the footer. `off` hides it |
-| `TOKEN_CA` | the $PLATES CA, `FQYq6mPLHYUGzT2gjb19xJShaVSZhSyxC58GnR9Npump` | The token's contract address, shown under the headline with a Copy button and in the footer. `off` shows "CA: Coming soon" |
+| `TOKEN_CA` | the $PLTS CA, `2nbsuDZocbrBkCQFC6wDFqG2q38Jd9GYo93EJBYdpump` | The token's contract address, shown under the headline with a Copy button and in the footer. `off` shows "CA: Coming soon" |
 
 ## How the server keeps keys private
 

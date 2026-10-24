@@ -144,7 +144,7 @@ Put them in `.env` (copy `.env.example`); `server.js` reads it on start, and var
 | `JURISDICTION` | empty | Country whose laws govern the terms |
 | `SOURCE_URL` | empty | Public source code link in the footer |
 | `X_URL` | `https://x.com/platesfun` | X account in the header, under the headline and in the footer; `off` hides it |
-| `TOKEN_CA` | the $PLATES CA (`FQYq6m…Npump`) | Token contract address under the headline and in the footer, with a Copy button; `off` shows "CA: Coming soon" |
+| `TOKEN_CA` | the $PLTS CA (`2nbsuD…Ypump`) | Token contract address under the headline and in the footer, with a Copy button; `off` shows "CA: Coming soon" |
 
 ## Troubleshooting
 
