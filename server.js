@@ -626,17 +626,31 @@ const server = http.createServer(async (req, res) => {
       }
       if (m[2] === '/send') {
         if (req.method !== 'POST' || !job.pay) return send(res, 405, { error: 'method' });
-        if (job.status !== 'unpaid') return send(res, 409, { error: 'not-unpaid' });
+        if (job.status !== 'unpaid') return send(res, 409, { error: 'not-unpaid', message: 'this search is already paid' });
         let body, tx, raw;
         try { body = await readJson(req, 4096); raw = Buffer.from(String(body.transaction || ''), 'base64'); tx = readTx(raw); }
-        catch { return send(res, 400, { error: 'bad-transaction' }); }
-        if (!isJobPayment(tx, job)) return send(res, 400, { error: 'not-a-payment', message: 'that transaction is not the payment for this search' });
+        catch {
+          log(`job ${job.id.slice(0, 8)} payment from the wallet refused: unreadable transaction (${raw ? raw.length : 0} bytes)`);
+          return send(res, 400, { error: 'bad-transaction', message: 'your wallet returned a payment this site could not read' });
+        }
+        if (!isJobPayment(tx, job)) {
+          log(`job ${job.id.slice(0, 8)} payment from the wallet refused: not this search's payment`);
+          return send(res, 400, { error: 'not-a-payment', message: 'that transaction is not the payment for this search' });
+        }
         try {
           const sig = await rpc('sendTransaction', [raw.toString('base64'), { encoding: 'base64', preflightCommitment: 'confirmed', maxRetries: 5 }]);
           log(`job ${job.id.slice(0, 8)} payment sent for the wallet (${sig})`);
           job.pay.hint = sig; job.seenAt = Date.now(); checkPayment(job);
           return send(res, 200, { signature: sig });
-        } catch (e) { log(`job ${job.id.slice(0, 8)} payment send failed: ${e.message}`); return send(res, 502, { error: 'rpc', message: e.message }); }
+        } catch (e) {
+          // The wallet may have sent this very transaction already: then it is on its way, and its signature is its id.
+          if (/already been processed|AlreadyProcessed/i.test(e.message) && raw[0] === 1) {
+            const sig = VP.b58(raw.subarray(1, 65));
+            job.pay.hint = sig; job.seenAt = Date.now(); checkPayment(job);
+            return send(res, 200, { signature: sig });
+          }
+          log(`job ${job.id.slice(0, 8)} payment send failed: ${e.message}`); return send(res, 502, { error: 'rpc', message: e.message });
+        }
       }
       if (m[2]) {
         // The page reports the signature its wallet returned, so the server checks that transaction right away.

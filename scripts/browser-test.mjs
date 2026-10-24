@@ -96,6 +96,21 @@ const signOnlyWallet = (address, pub) => {
   try { window.dispatchEvent(new CustomEvent('wallet-standard:register-wallet', { detail: cb })); } catch {}
   try { window.addEventListener('wallet-standard:app-ready', ({ detail }) => cb(detail)); } catch {}
 };
+// A wallet that sends the payment and still reports an error: the page must find the payment, not ask to sign again.
+let resigned = 0;
+async function landQuiet(txBytes) { const tx = web3.Transaction.from(Buffer.from(txBytes)); tx.sign(payer); landTx(tx); }
+const sendsThenErrsWallet = (address, pub) => {
+  const account = { address, publicKey: new Uint8Array(pub), chains: ['solana:mainnet'], features: ['solana:signAndSendTransaction', 'solana:signTransaction'] };
+  const wallet = { version: '1.0.0', name: 'Flaky Wallet', icon: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" rx="3" fill="#F55"/></svg>'),
+    chains: ['solana:mainnet'], accounts: [], features: {
+      'standard:connect': { version: '1.0.0', connect: async () => ({ accounts: [account] }) },
+      'solana:signAndSendTransaction': { version: '1.0.0', supportedTransactionVersions: ['legacy', 0], signAndSendTransaction: async ({ transaction }) => { await window.__landQuiet(Array.from(transaction)); throw new Error({ code: -32603 }); } },
+      'solana:signTransaction': { version: '1.0.0', supportedTransactionVersions: ['legacy', 0], signTransaction: async () => { await window.__resign(); throw new Error('should not be asked'); } },
+    } };
+  const cb = ({ register }) => register(wallet);
+  try { window.dispatchEvent(new CustomEvent('wallet-standard:register-wallet', { detail: cb })); } catch {}
+  try { window.addEventListener('wallet-standard:app-ready', ({ detail }) => cb(detail)); } catch {}
+};
 // Same two-way handshake as @wallet-standard/wallet registerWallet().
 const fakeWallet = (name, address, pub) => {
   const account = { address, publicKey: new Uint8Array(pub), chains: ['solana:mainnet'], features: ['solana:signAndSendTransaction'] };
@@ -314,6 +329,25 @@ await bp.waitForSelector('.res', { timeout: 60000 }).catch(async () => fail('sig
 check(signedOnly === 1 && /^[Bb]/.test((await bp.textContent('.res .kv .v')).trim()), 'sign-only wallet payment');
 await bp.close();
 console.log('wallet that cannot send ("[object Object]"): signed payment sent by the server, key delivered: ok');
+
+/* ---- a wallet that sends the payment but reports an error: the page finds the payment instead of asking again ---- */
+const fw = await browser.newPage();
+fw.on('pageerror', e => fail('page error: ' + e.message));
+await fw.exposeFunction('__landQuiet', landQuiet);
+await fw.exposeFunction('__resign', () => { resigned++; });
+await fw.addInitScript(`(${sendsThenErrsWallet})(${JSON.stringify(payer.publicKey.toBase58())}, ${JSON.stringify(Array.from(payer.publicKey.toBytes()))})`);
+await fw.goto(base + '/', { waitUntil: 'load' });
+await fw.fill('#pre', 'C');
+await fw.waitForSelector('#go:not([disabled])', { timeout: 30000 });
+await fw.click('#go');
+await fw.waitForSelector('#paybox:not([hidden])', { timeout: 15000 }).catch(() => fail('pay box never appeared for the flaky wallet'));
+await fw.click('#payBtn');
+await fw.waitForSelector('#walletDlg[open]');
+await fw.click('#walletList .wrow:has-text("Flaky Wallet")');
+await fw.waitForSelector('.res', { timeout: 60000 }).catch(async () => fail('flaky wallet: no result; pay msg: ' + await fw.textContent('#payMsg')));
+check(resigned === 0 && /^[Cc]/.test((await fw.textContent('.res .kv .v')).trim()), 'flaky wallet was asked to sign again: ' + resigned);
+await fw.close();
+console.log('wallet that sends but reports an error: payment found, not asked to sign again, key delivered: ok');
 
 /* ---- phone without a wallet: reopen the page inside the wallet app ---- */
 const phone = await browser.newContext({ ...devices['iPhone 13'] });

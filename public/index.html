@@ -971,24 +971,42 @@ async function balanceOf(address){
   } catch { return null; }
 }
 // Has the wallet sign and send a transfer. When a wallet fails to send it itself (its own RPC, or an unreadable error)
-// but can sign, a job payment goes out through our server, which sends only a valid payment for that job.
-async function walletSend(c, chain, tx, relay){
+// but can sign, a job payment goes out through our server, which sends only a valid payment for that job. Some
+// wallets send the payment and still report an error, so `landed` looks for it first; null means it arrived.
+const txBytes = x => x instanceof Uint8Array ? x : typeof x === 'string' ? fromB64(x)
+  : x && typeof x.serialize === 'function' ? new Uint8Array(x.serialize()) : x && x.buffer ? new Uint8Array(x.buffer, x.byteOffset || 0, x.byteLength) : Uint8Array.from(x || []);
+async function walletSend(c, chain, tx, relay, landed){
   const f = c.w.features;
   try {
     const [out] = await f['solana:signAndSendTransaction'].signAndSendTransaction({ account: c.account, chain, transaction: tx });
-    return b58(out.signature);
+    return b58(txBytes(out.signature));
   } catch (e) {
     console.error(`${c.w.name} could not sign and send the transfer:`, e);
     const why = walletError(e);
-    if (why.kind !== 'other' || !relay || !f['solana:signTransaction']) throw why;
+    if (why.kind !== 'other' || !relay) throw why;
+    if (landed && await landed()) return null;
+    if (!f['solana:signTransaction']) throw why;
     let signed;
     try { [{ signedTransaction: signed }] = await f['solana:signTransaction'].signTransaction({ account: c.account, chain, transaction: tx }); }
     catch (e2) { console.error(`${c.w.name} could not sign the transfer:`, e2); throw walletError(e2); }
-    const r = await fetch(relay, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ transaction: toB64(new Uint8Array(signed)) }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.signature) throw walletError(j.message || why.text || 'the network did not accept it');
-    return j.signature;
+    const r = await fetch(relay, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ transaction: toB64(txBytes(signed)) }) }).catch(() => null);
+    const j = r ? await r.json().catch(() => ({})) : {};
+    if (r && r.ok && j.signature) return j.signature;
+    if (j.error === 'not-unpaid') return null;   // the payment arrived in the meantime
+    console.error('the server could not send the signed payment:', r && r.status, j);
+    throw walletError(j.message || (r && r.status === 429 ? 'too many tries at once; wait a few seconds' : '') || why.text || `the network did not accept it${r ? ` (HTTP ${r.status})` : ''}`);
   }
+}
+// After a wallet error: did the payment land anyway? Asks the server for up to about 12 seconds.
+async function paymentLanded(job){
+  payMsg('Checking whether the payment went through…');
+  for (let i = 0; i < 8; i++){
+    const r = await fetch('api/jobs/' + job.id, { cache: 'no-store' }).catch(() => null);
+    const j = r && r.ok ? await r.json().catch(() => null) : null;
+    if (j && j.status !== 'unpaid') return j.status !== 'canceled' && j.status !== 'failed';
+    await sleep(1500);
+  }
+  return false;
 }
 // Key vault: before paying, the wallet signs a fixed message, and a key derived from that signature locks the new key,
 // which the server keeps for My addresses. Ed25519 signatures are deterministic, so the same wallet signs the same
@@ -1131,13 +1149,14 @@ async function pay(){
     if (!r.ok) throw walletError('the server could not reach Solana');
     const { blockhash } = await r.json();
     const tx = transferTx(c.account.publicKey, b58dec(p.to), b58dec(p.reference), p.lamports, b58dec(blockhash));
-    const sig = await walletSend(c, p.chain, tx, `api/jobs/${job.id}/send`);
+    const sig = await walletSend(c, p.chain, tx, `api/jobs/${job.id}/send`, () => paymentLanded(job));
     if (job !== state.job) return;
+    if (!sig){ payMsg('Payment received. The search starts in a moment.'); return; }
     job.paySig = sig; idbPut(job);
     payMsg(sentMsg); reportPayment(job);
   } catch (e) {
     const why = walletError(e);
-    if (job === state.job) payMsg(`${failText(why, 'payment')} ${why.kind === 'other' ? 'Nothing was sent unless your wallet shows a sent transfer.' : 'Press Pay to try again.'}`);
+    if (job === state.job) payMsg(`${failText(why, 'payment')} ${why.kind === 'other' ? 'If your wallet shows the transfer as sent, keep this page open: the search starts as soon as it confirms. Otherwise press Pay to try again.' : 'Press Pay to try again.'}`);
   } finally { state.paying = false; if (job === state.job) renderPay(); }
 }
 // Tells the server which transaction to look at, so it does not have to wait for the reference lookup.
